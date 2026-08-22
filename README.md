@@ -66,13 +66,9 @@ keyed per ROM, and are never uploaded.
 
 binjgb can apply a CGB color curve, which imitates how washed-out a real Game
 Boy Color screen looks. `simple.js` ships with the Gambatte curve; this player
-defaults to **vivid** (no curve — raw RGB), which is punchier on a modern
-screen. The **Color** menu switches between vivid, SameBoy's hardware curve,
-and Gambatte's, and remembers your choice.
-
-The curve is baked in when the emulator core is created, and the converted
-colors live in the emulator state, so switching restarts the ROM to apply it.
-Your save state survives — press F9 after the restart to get back.
+uses no curve, so colors come through as the game authored them. To go back to
+a hardware look, set `CGB_COLOR_CURVE` at the top of `assets/player.js` to `1`
+(SameBoy) or `2` (Gambatte).
 
 ## Layout
 
@@ -96,7 +92,7 @@ roms/                 your ROMs + roms.json manifest
   (Nintendo logo / checksum) is reported instead of silently booting noise;
 - keystrokes aimed at the toolbar don't leak into the emulator;
 - pause is enabled;
-- the CGB color curve is a runtime setting rather than a constant;
+- the CGB color curve defaults to none rather than Gambatte's;
 - two crash fixes, both of which only bite once you create a second emulator
   (upstream `simple.js` only ever creates one, so it never hits them):
   - `destroy()` freed the ROM buffer that `emulator_new_simple` had already

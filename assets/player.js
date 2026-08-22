@@ -18,9 +18,10 @@ const ENABLE_REWIND = true;
 const ENABLE_PAUSE = true;
 const ENABLE_SWITCH_PALETTES = true;
 const OSGP_DEADZONE = 0.1;    // On screen gamepad deadzone range
-// Changed at runtime by the Color menu; see COLOR_CURVES below.
-// 0: none (raw RGB), 1: SameBoy "emulate hardware", 2: Gambatte/Game Boy Online.
-let cgbColorCurve = 0;
+// 0: none (raw RGB), 1: SameBoy "emulate hardware", 2: Gambatte/Game Boy
+// Online. Upstream defaults to 2, which imitates a real GBC's washed-out
+// screen; 0 keeps the colors as the game authored them.
+const CGB_COLOR_CURVE = 0;
 
 // List of DMG palettes to switch between. By default it includes all 84
 // built-in palettes. If you want to restrict this, change it to an array of
@@ -157,7 +158,7 @@ class Emulator {
         .set(new Uint8Array(romBuffer));
     this.e = this.module._emulator_new_simple(
         this.romDataPtr, size, Audio.ctx.sampleRate, AUDIO_FRAMES,
-        cgbColorCurve);
+        CGB_COLOR_CURVE);
     if (this.e == 0) {
       throw new Error('Invalid ROM.');
     }
@@ -895,15 +896,6 @@ const MANIFEST_URL = 'roms/roms.json';
 const MIN_ROM_BYTES = 0x8000;  // 32 KB: the smallest possible cartridge
 const MAX_ROM_BYTES = 8 * 1024 * 1024;
 const STORAGE_PREFIX = 'gbcwebdemo';
-const COLOR_CURVE_STORAGE_KEY = STORAGE_PREFIX + ':colorcurve';
-
-// The curve is baked in when the emulator is created, so changing it restarts
-// the core — see applyColorCurve, which carries the running state across.
-const COLOR_CURVES = [
-  {value: 0, label: 'Color: vivid'},
-  {value: 1, label: 'Color: hardware (SameBoy)'},
-  {value: 2, label: 'Color: hardware (Gambatte)'},
-];
 
 const screenEl = $('#screen');
 const statusEl = $('#status');
@@ -911,7 +903,6 @@ const romInfoEl = $('#rom-info');
 const romSelectEl = $('#rom-select');
 const fileInputEl = $('#rom-file');
 const dropHintEl = $('#drop-hint');
-const colorCurveEl = $('#color-curve');
 
 let romKey = 'none';       // identifies save data for the loaded ROM
 let currentRom = null;     // {buffer, key, label}
@@ -1010,26 +1001,6 @@ async function startRom(buffer, key, label) {
       (info && !info.headerOk ? 'Header looks wrong (bad logo or checksum) — running anyway. ' : '') +
       'Click the screen to enable sound, then press Enter to start.',
       !!(info && !info.headerOk));
-}
-
-function applyColorCurve(curve) {
-  cgbColorCurve = curve;
-  try {
-    localStorage.setItem(COLOR_CURVE_STORAGE_KEY, String(curve));
-  } catch (e) {
-    console.warn('could not save color curve', e);
-  }
-  if (!emulator || !currentRom) return;
-
-  // The curve is applied when the game writes its palettes, and the converted
-  // colors then live in the emulator state — so carrying the state across the
-  // switch would keep the old colors until the game happened to rewrite them.
-  // Boot the ROM under the new curve instead. Save states are untouched.
-  const option = COLOR_CURVES.find(c => c.value === curve);
-  startRom(currentRom.buffer, currentRom.key, currentRom.label).then(() => {
-    setStatus((option ? option.label.replace('Color: ', 'Color curve: ') : 'Color curve changed') +
-              ' — restarted the ROM to apply it (F9 loads your save state).');
-  });
 }
 
 // Only same-origin, relative paths — no fetching arbitrary URLs from ?rom=.
@@ -1168,29 +1139,9 @@ function wireControls() {
   });
 
   dropHintEl.addEventListener('click', () => fileInputEl.click());
-
-  for (const curve of COLOR_CURVES) {
-    const option = document.createElement('option');
-    option.value = String(curve.value);
-    option.textContent = curve.label;
-    colorCurveEl.appendChild(option);
-  }
-  colorCurveEl.value = String(cgbColorCurve);
-  colorCurveEl.addEventListener('change', event => {
-    applyColorCurve(Number(event.target.value));
-    event.target.blur();
-  });
 }
 
 (async function boot() {
-  try {
-    const saved = localStorage.getItem(COLOR_CURVE_STORAGE_KEY);
-    if (saved !== null && COLOR_CURVES.some(c => c.value === Number(saved))) {
-      cgbColorCurve = Number(saved);
-    }
-  } catch (e) {
-    console.warn('could not read color curve', e);
-  }
   wireControls();
 
   const manifest = await loadManifest();
