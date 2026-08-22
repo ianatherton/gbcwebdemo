@@ -1,0 +1,239 @@
+/* Page shell for the GBC web player. The #controller rules live in controller.css. */
+
+:root {
+  color-scheme: dark;
+  --bg: #10131a;
+  --panel: #1a1f2b;
+  --line: #2b3242;
+  --text: #e7ecf5;
+  --muted: #96a0b5;
+  --accent: #7dd3a0;
+  --error: #ff8a8a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 16px 40px;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--accent); }
+
+.bar {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rom-info {
+  margin: 0;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+main {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* --- screen --------------------------------------------------------------- */
+
+#screen {
+  position: relative;
+  /* Cap at 3x the 160x144 screen, and keep it short enough to sit above the
+     fold on a laptop. */
+  width: min(100%, 480px, calc(58vh * 160 / 144));
+  aspect-ratio: 160 / 144;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+}
+
+#screen:fullscreen {
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+
+/* The drop target covers the screen until a ROM is running. */
+#drop-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: 0;
+  background: #0d1017;
+  color: var(--muted);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+#drop-hint strong { color: var(--text); font-size: 16px; }
+#drop-hint code { font-size: 13px; }
+body.running #drop-hint { display: none; }
+body.dragging #drop-hint { display: flex; outline: 2px dashed var(--accent); outline-offset: -10px; }
+
+/* --- toolbar -------------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+button, select, .file-button {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover, select:hover, .file-button:hover { border-color: #3d4759; }
+button:active { transform: translateY(1px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.file-button { display: inline-flex; align-items: center; }
+.file-button input { display: none; }
+
+#status {
+  width: 100%;
+  margin: 0;
+  min-height: 1.5em;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#status.error { color: var(--error); }
+
+/* --- help ----------------------------------------------------------------- */
+
+.help {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.help h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.help dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 20px;
+  margin: 0;
+}
+
+.help dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.help dt { color: var(--muted); }
+.help dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.note, footer p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+footer { border-top: 1px solid var(--line); padding-top: 12px; }
+footer p { margin: 0; }
+
+/* Keep page content clear of the fixed on-screen gamepad (touch devices). */
+body.touch-gamepad { padding-bottom: 240px; }
+
+/* Dock the gamepad opaquely at the bottom; the GB Studio styles float it and
+   let the page show through, which is unreadable on a scrolling page. */
+#controller {
+  bottom: 0;
+  transform: none;
+  opacity: 1;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+/* Phone in landscape: float the gamepad at the screen edges (d-pad left,
+   buttons right) and fit the game between them, instead of stacking. */
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  body { padding-top: 10px; gap: 10px; }
+  body.touch-gamepad { padding-bottom: 20px; }
+
+  #screen { width: min(100%, calc((100vh - 90px) * 160 / 144)); }
+
+  #controller {
+    top: 0;
+    height: 100%;
+    background: none;
+    border-top: 0;
+    pointer-events: none;
+  }
+
+  #controller > * { pointer-events: auto; }
+
+  #controller_dpad { bottom: auto; top: 50%; margin-top: -92px; }
+  #controller_a { bottom: 50%; margin-bottom: 4px; }
+  #controller_b { bottom: 50%; margin-bottom: -34px; }
+  #controller_start, #controller_select { bottom: 24px; }
+}

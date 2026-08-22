@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GBC Web Player</title>
+<meta name="description" content="Play and test Game Boy Color ROMs in the browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1f2b'/%3E%3Crect x='3' y='3' width='10' height='8' rx='1' fill='%237dd3a0'/%3E%3Ccircle cx='11.5' cy='13' r='1.2' fill='%23e7ecf5'/%3E%3Crect x='3' y='12.3' width='4' height='1.4' rx='.7' fill='%23e7ecf5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/controller.css">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <h1>GBC Web Player</h1>
+  <p id="rom-info" class="rom-info">No ROM loaded</p>
+</header>
+
+<main>
+  <div id="screen">
+    <canvas id="mainCanvas" width="160" height="144">Your browser does not support canvas.</canvas>
+    <button type="button" id="drop-hint">
+      <strong>Drop a ROM here</strong>
+      <span>or click to pick a <code>.gb</code> / <code>.gbc</code> file</span>
+    </button>
+  </div>
+
+  <div class="toolbar">
+    <select id="rom-select" aria-label="Choose a ROM" hidden></select>
+    <button type="button" id="btn-pause">Pause</button>
+    <button type="button" id="btn-reset">Reset</button>
+    <button type="button" id="btn-save">Save state</button>
+    <button type="button" id="btn-load">Load state</button>
+    <button type="button" id="btn-mute" aria-pressed="false">Mute</button>
+    <button type="button" id="btn-fullscreen">Fullscreen</button>
+    <label class="file-button">
+      Open ROM…
+      <input type="file" id="rom-file" accept=".gb,.gbc,.bin,application/octet-stream">
+    </label>
+  </div>
+
+  <p id="status" role="status">Starting…</p>
+
+  <section class="help">
+    <h2>Controls</h2>
+    <dl>
+      <div><dt>D-pad</dt><dd>Arrow keys</dd></div>
+      <div><dt>A / B</dt><dd>X / Z</dd></div>
+      <div><dt>Start / Select</dt><dd>Enter / Right Shift</dd></div>
+      <div><dt>Fast forward</dt><dd>Left Shift (hold)</dd></div>
+      <div><dt>Rewind</dt><dd>Backspace (hold)</dd></div>
+      <div><dt>Pause</dt><dd>Space</dd></div>
+      <div><dt>Save / load state</dt><dd>F6 / F9</dd></div>
+      <div><dt>DMG palette</dt><dd>[ and ]</dd></div>
+    </dl>
+    <p class="note">
+      Touch devices get an on-screen gamepad. Battery saves and save states are kept
+      in this browser's local storage, per ROM — they are not uploaded anywhere.
+    </p>
+  </section>
+</main>
+
+<div id="controller">
+  <div id="controller_dpad">
+    <div id="controller_left"></div>
+    <div id="controller_right"></div>
+    <div id="controller_up"></div>
+    <div id="controller_down"></div>
+  </div>
+  <div id="controller_select" class="capsuleBtn">Select</div>
+  <div id="controller_start" class="capsuleBtn">Start</div>
+  <div id="controller_b" class="roundBtn">B</div>
+  <div id="controller_a" class="roundBtn">A</div>
+</div>
+
+<footer class="bar">
+  <p>
+    Emulation by <a href="https://github.com/binji/binjgb">binjgb</a> (MIT), with the
+    on-screen gamepad from <a href="https://github.com/chrismaltby/gb-studio">GB Studio</a> (MIT).
+    Licenses in <a href="licenses/">licenses/</a>.
+  </p>
+</footer>
+
+<script src="vendor/binjgb.js"></script>
+<script src="assets/player.js"></script>
+</body>
+</html>
