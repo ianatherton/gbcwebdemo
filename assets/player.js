@@ -70,6 +70,19 @@ const EVENT_UNTIL_TICKS = 4;
 const $ = document.querySelector.bind(document);
 let emulator = null;
 
+// The build tag from our own <script src="assets/player.js?v=N">. Everything
+// this file fetches carries it too, so a visitor can never end up running new
+// code against an old wasm core. Bump it in index.html when you deploy; see
+// the Caching section of README.md.
+const BUILD_VERSION = document.currentScript ?
+    new URL(document.currentScript.src).searchParams.get('v') || '' : '';
+
+function versioned(url) {
+  if (!BUILD_VERSION) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'v=' +
+      encodeURIComponent(BUILD_VERSION);
+}
+
 const controllerEl = $('#controller');
 const dpadEl = $('#controller_dpad');
 const selectEl = $('#controller_select');
@@ -77,7 +90,10 @@ const startEl = $('#controller_start');
 const bEl = $('#controller_b');
 const aEl = $('#controller_a');
 
-const binjgbPromise = Binjgb();
+// locateFile resolves binjgb.wasm; version it alongside the glue script.
+const binjgbPromise = Binjgb({
+  locateFile: (path, scriptDirectory) => versioned(scriptDirectory + path),
+});
 
 // Extract stuff from the vue.js implementation in demo.js.
 class VM {
@@ -1017,7 +1033,7 @@ async function loadRomFromUrl(path) {
   setStatus('Loading ' + path + '…');
   let response;
   try {
-    response = await fetch(path);
+    response = await fetch(path, {cache: 'no-cache'});
   } catch (e) {
     setStatus('Could not fetch ' + path + ': ' + e.message, true);
     return;
@@ -1047,7 +1063,7 @@ async function loadRomFromFile(file) {
 
 async function loadManifest() {
   try {
-    const response = await fetch(MANIFEST_URL);
+    const response = await fetch(MANIFEST_URL, {cache: 'no-cache'});
     if (!response.ok) return [];
     const entries = await response.json();
     return Array.isArray(entries) ? entries.filter(e => e && e.file) : [];

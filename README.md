@@ -45,6 +45,39 @@ python3 -m http.server 8000
 # then open http://localhost:8000/
 ```
 
+## Caching
+
+GitHub Pages serves everything with `max-age=600`, so a returning visitor can
+hold a ten-minute-old copy of the site in their browser cache. Nothing on the
+page can clear that — `caches.delete()` only touches the Cache Storage API,
+which this site doesn't use, and there is no way to reach the browser's HTTP
+cache from JavaScript. What the page can do is make its requests unable to
+serve stale bytes:
+
+- **ROMs and `roms.json`** are fetched with `cache: 'no-cache'`, which
+  revalidates against the server every time. Push a new build, tell a tester to
+  reload, and they get it — no waiting, no bookkeeping. Unlike `no-store` this
+  still allows a `304 Not Modified`, so an unchanged ROM isn't re-downloaded.
+- **Site assets** carry a `?v=` tag. Bump it in `index.html` when you deploy
+  and browsers treat them as new URLs, so the CSS and JS update immediately
+  instead of after ten minutes:
+
+  ```sh
+  sed -i 's/?v=1/?v=2/g' index.html
+  ```
+
+  `player.js` reads the tag off its own `<script>` URL and passes it to
+  `binjgb.wasm`, so the core can never be a different build from the code
+  loading it.
+
+`index.html` itself is the one file that can still be up to ten minutes stale,
+since it's what carries the version tags. Its markup rarely changes, and the
+window is bounded — GitHub purges its CDN on every deploy, so the staleness is
+only ever browser-side.
+
+A service worker could close that last gap, but they are a far more common
+*cause* of permanently stale sites than a cure, and one isn't worth it here.
+
 ## Controls
 
 | Action | Key |

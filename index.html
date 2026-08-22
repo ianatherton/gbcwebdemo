@@ -6,8 +6,10 @@
 <title>GBC Web Player</title>
 <meta name="description" content="Play and test Game Boy Color ROMs in the browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1f2b'/%3E%3Crect x='3' y='3' width='10' height='8' rx='1' fill='%237dd3a0'/%3E%3Ccircle cx='11.5' cy='13' r='1.2' fill='%23e7ecf5'/%3E%3Crect x='3' y='12.3' width='4' height='1.4' rx='.7' fill='%23e7ecf5'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="assets/controller.css">
-<link rel="stylesheet" href="assets/style.css">
+<!-- Bump ?v= on every deploy so browsers fetch the new files instead of
+     serving cached ones. See the Caching section of README.md. -->
+<link rel="stylesheet" href="assets/controller.css?v=1">
+<link rel="stylesheet" href="assets/style.css?v=1">
 </head>
 <body>
 
@@ -85,7 +87,7 @@
   </p>
 </footer>
 
-<script src="vendor/binjgb.js"></script>
-<script src="assets/player.js"></script>
+<script src="vendor/binjgb.js?v=1"></script>
+<script src="assets/player.js?v=1"></script>
 </body>
 </html>
