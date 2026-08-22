@@ -18,7 +18,9 @@ const ENABLE_REWIND = true;
 const ENABLE_PAUSE = true;
 const ENABLE_SWITCH_PALETTES = true;
 const OSGP_DEADZONE = 0.1;    // On screen gamepad deadzone range
-const CGB_COLOR_CURVE = 2;    // 0: none, 1: Sameboy "Emulate Hardware" 2: Gambatte/Gameboy Online
+// Changed at runtime by the Color menu; see COLOR_CURVES below.
+// 0: none (raw RGB), 1: SameBoy "emulate hardware", 2: Gambatte/Game Boy Online.
+let cgbColorCurve = 0;
 
 // List of DMG palettes to switch between. By default it includes all 84
 // built-in palettes. If you want to restrict this, change it to an array of
@@ -155,7 +157,7 @@ class Emulator {
         .set(new Uint8Array(romBuffer));
     this.e = this.module._emulator_new_simple(
         this.romDataPtr, size, Audio.ctx.sampleRate, AUDIO_FRAMES,
-        CGB_COLOR_CURVE);
+        cgbColorCurve);
     if (this.e == 0) {
       throw new Error('Invalid ROM.');
     }
@@ -188,8 +190,13 @@ class Emulator {
     clearInterval(this.rewindIntervalId);
     this.rewind.destroy();
     this.audio.destroy();
+    // emulator_new_simple takes ownership of the ROM buffer (it stores the
+    // pointer, and emulator_delete frees it via file_data_delete), so freeing
+    // romDataPtr here as well would be a double free. That corrupts the
+    // allocator and the next large allocation traps; upstream simple.js never
+    // notices because it only ever creates one emulator.
     this.module._emulator_delete(this.e);
-    this.module._free(this.romDataPtr);
+    this.romDataPtr = 0;
   }
 
   withNewFileData(fileDataPtr, cb) {
@@ -225,23 +232,44 @@ class Emulator {
     });
   }
 
-  loadState() {
-    const saveStateBuffer = readStoredBytes('savestate');
-    if (saveStateBuffer.byteLength === 0) return;
-    this.withNewStateFileData((fileDataPtr, buffer) => {
-      if (buffer.byteLength === saveStateBuffer.byteLength) {
-        buffer.set(new Uint8Array(saveStateBuffer));
-        this.module._emulator_read_state(this.e, fileDataPtr);
-      }
-    });
-  }
-
-  saveState() {
-    const saveStateBuffer = this.withNewStateFileData((fileDataPtr, buffer) => {
+  // Returns a copy of the emulator state, detached from the wasm heap.
+  captureState() {
+    return this.withNewStateFileData((fileDataPtr, buffer) => {
       this.module._emulator_write_state(this.e, fileDataPtr);
       return new Uint8Array(buffer);
     });
-    writeStoredBytes('savestate', saveStateBuffer);
+  }
+
+  restoreState(stateBuffer) {
+    if (!stateBuffer || stateBuffer.byteLength === 0) return false;
+    this.endRewind();
+    let restored = false;
+    this.withNewStateFileData((fileDataPtr, buffer) => {
+      if (buffer.byteLength === stateBuffer.byteLength) {
+        buffer.set(new Uint8Array(stateBuffer));
+        restored =
+            this.module._emulator_read_state(this.e, fileDataPtr) === RESULT_OK;
+      }
+    });
+    if (restored) {
+      // rewind_append requires ticks to keep increasing; a restored state jumps
+      // them, and appending across that gap corrupts the buffer (the assert
+      // that catches it is compiled out of the release wasm). Start over.
+      this.rewind.destroy();
+      this.rewind = new Rewind(this.module, this.e);
+      this.lastRafSec = 0;
+      this.leftoverTicks = 0;
+      this.audio.startSec = 0;
+    }
+    return restored;
+  }
+
+  loadState() {
+    return this.restoreState(readStoredBytes('savestate'));
+  }
+
+  saveState() {
+    writeStoredBytes('savestate', this.captureState());
   }
 
   get isPaused() {
@@ -593,9 +621,11 @@ class Emulator {
   setJoypA(set) { this.module._set_joyp_A(this.e, set); }
 }
 
+let audioUnlocked = false;
+
 class Audio {
   constructor(module, e) {
-    this.started = false;
+    this.started = audioUnlocked;
     this.module = module;
     this.buffer = makeWasmBuffer(
         this.module, this.module._get_audio_buffer_ptr(e),
@@ -613,6 +643,7 @@ class Audio {
     window.removeEventListener('touchend', this.boundStartPlayback, true);
     window.removeEventListener('keydown', this.boundStartPlayback, true);
     window.removeEventListener('click', this.boundStartPlayback, true);
+    audioUnlocked = true;
     this.started = true;
     this.resume();
   }
@@ -864,6 +895,15 @@ const MANIFEST_URL = 'roms/roms.json';
 const MIN_ROM_BYTES = 0x8000;  // 32 KB: the smallest possible cartridge
 const MAX_ROM_BYTES = 8 * 1024 * 1024;
 const STORAGE_PREFIX = 'gbcwebdemo';
+const COLOR_CURVE_STORAGE_KEY = STORAGE_PREFIX + ':colorcurve';
+
+// The curve is baked in when the emulator is created, so changing it restarts
+// the core — see applyColorCurve, which carries the running state across.
+const COLOR_CURVES = [
+  {value: 0, label: 'Color: vivid'},
+  {value: 1, label: 'Color: hardware (SameBoy)'},
+  {value: 2, label: 'Color: hardware (Gambatte)'},
+];
 
 const screenEl = $('#screen');
 const statusEl = $('#status');
@@ -871,6 +911,7 @@ const romInfoEl = $('#rom-info');
 const romSelectEl = $('#rom-select');
 const fileInputEl = $('#rom-file');
 const dropHintEl = $('#drop-hint');
+const colorCurveEl = $('#color-curve');
 
 let romKey = 'none';       // identifies save data for the loaded ROM
 let currentRom = null;     // {buffer, key, label}
@@ -971,6 +1012,26 @@ async function startRom(buffer, key, label) {
       !!(info && !info.headerOk));
 }
 
+function applyColorCurve(curve) {
+  cgbColorCurve = curve;
+  try {
+    localStorage.setItem(COLOR_CURVE_STORAGE_KEY, String(curve));
+  } catch (e) {
+    console.warn('could not save color curve', e);
+  }
+  if (!emulator || !currentRom) return;
+
+  // The curve is applied when the game writes its palettes, and the converted
+  // colors then live in the emulator state — so carrying the state across the
+  // switch would keep the old colors until the game happened to rewrite them.
+  // Boot the ROM under the new curve instead. Save states are untouched.
+  const option = COLOR_CURVES.find(c => c.value === curve);
+  startRom(currentRom.buffer, currentRom.key, currentRom.label).then(() => {
+    setStatus((option ? option.label.replace('Color: ', 'Color curve: ') : 'Color curve changed') +
+              ' — restarted the ROM to apply it (F9 loads your save state).');
+  });
+}
+
 // Only same-origin, relative paths — no fetching arbitrary URLs from ?rom=.
 function isSafeRomPath(path) {
   return !!path && !path.startsWith('/') && !path.includes('//') &&
@@ -1067,8 +1128,8 @@ function wireControls() {
 
   onClick('#btn-load', () => {
     if (!emulator) return;
-    emulator.loadState();
-    setStatus('Loaded state.');
+    setStatus(emulator.loadState() ? 'Loaded state.' :
+                                     'No save state stored for this ROM yet.');
   });
 
   onClick('#btn-mute', event => {
@@ -1107,9 +1168,29 @@ function wireControls() {
   });
 
   dropHintEl.addEventListener('click', () => fileInputEl.click());
+
+  for (const curve of COLOR_CURVES) {
+    const option = document.createElement('option');
+    option.value = String(curve.value);
+    option.textContent = curve.label;
+    colorCurveEl.appendChild(option);
+  }
+  colorCurveEl.value = String(cgbColorCurve);
+  colorCurveEl.addEventListener('change', event => {
+    applyColorCurve(Number(event.target.value));
+    event.target.blur();
+  });
 }
 
 (async function boot() {
+  try {
+    const saved = localStorage.getItem(COLOR_CURVE_STORAGE_KEY);
+    if (saved !== null && COLOR_CURVES.some(c => c.value === Number(saved))) {
+      cgbColorCurve = Number(saved);
+    }
+  } catch (e) {
+    console.warn('could not read color curve', e);
+  }
   wireControls();
 
   const manifest = await loadManifest();
@@ -1130,3 +1211,4 @@ function wireControls() {
     setStatus('No ROM yet — drop a .gb/.gbc file here, or add one to roms/.');
   }
 })();
+
