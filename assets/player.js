@@ -482,30 +482,20 @@ class Emulator {
     const x = (2 * (event.targetTouches[0].clientX - rect.left)) / rect.width - 1;
     const y = (2 * (event.targetTouches[0].clientY - rect.top)) / rect.height - 1;
 
-    if (Math.abs(x) > OSGP_DEADZONE) {
-      if (y > x && y < -x) {
-        this.setJoypLeft(true);
-        this.setJoypRight(false);
-      } else if (y < x && y > -x) {
-        this.setJoypLeft(false);
-        this.setJoypRight(true);
-      }
-    } else {
+    // Eight 45-degree sectors around the centre, so the corner pads press two
+    // directions at once. Sector 0 points right and they run clockwise, since
+    // y grows downwards.
+    if (Math.hypot(x, y) < OSGP_DEADZONE) {
       this.setJoypLeft(false);
       this.setJoypRight(false);
-    }
-
-    if (Math.abs(y) > OSGP_DEADZONE) {
-      if (x > y && x < -y) {
-        this.setJoypUp(true);
-        this.setJoypDown(false);
-      } else if (x < y && x > -y) {
-        this.setJoypUp(false);
-        this.setJoypDown(true);
-      }
-    } else {
       this.setJoypUp(false);
       this.setJoypDown(false);
+    } else {
+      const sector = (Math.round(Math.atan2(y, x) / (Math.PI / 4)) + 8) % 8;
+      this.setJoypRight(sector === 7 || sector === 0 || sector === 1);
+      this.setJoypDown(sector === 1 || sector === 2 || sector === 3);
+      this.setJoypLeft(sector === 3 || sector === 4 || sector === 5);
+      this.setJoypUp(sector === 5 || sector === 6 || sector === 7);
     }
     event.preventDefault();
   }
@@ -1162,4 +1152,5 @@ function wireControls() {
     setStatus('No ROM yet — drop a .gb/.gbc file here, or add one to roms/.');
   }
 })();
+
 

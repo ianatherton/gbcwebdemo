@@ -237,3 +237,41 @@ body.touch-gamepad { padding-bottom: 240px; }
   #controller_b { bottom: 50%; margin-bottom: -34px; }
   #controller_start, #controller_select { bottom: 24px; }
 }
+
+/* Diagonal pads, filling the corners of the d-pad's 3x3 grid (the arms sit on
+   a 20/68/116px grid of 48px cells). Inset slightly and shaded a little darker
+   so the eight pads stay distinguishable. */
+#controller_upleft,
+#controller_upright,
+#controller_downleft,
+#controller_downright {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  background: #5c5c5c;
+  background: radial-gradient(ellipse at center, #5c5c5c 0%, #525252 80%);
+}
+
+#controller_upleft {
+  left: 20px;
+  top: 20px;
+  border-top-left-radius: 4px;
+}
+
+#controller_upright {
+  left: 120px;
+  top: 20px;
+  border-top-right-radius: 4px;
+}
+
+#controller_downleft {
+  left: 20px;
+  top: 120px;
+  border-bottom-left-radius: 4px;
+}
+
+#controller_downright {
+  left: 120px;
+  top: 120px;
+  border-bottom-right-radius: 4px;
+}
