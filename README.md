@@ -93,6 +93,8 @@ roms/                 your ROMs + roms.json manifest
 - keystrokes aimed at the toolbar don't leak into the emulator;
 - pause is enabled;
 - the CGB color curve defaults to none rather than Gambatte's;
+- the on-screen d-pad has diagonal pads (eight sectors, not four);
+- queued audio is capped, so playback can't drift seconds behind;
 - two crash fixes, both of which only bite once you create a second emulator
   (upstream `simple.js` only ever creates one, so it never hits them):
   - `destroy()` freed the ROM buffer that `emulator_new_simple` had already

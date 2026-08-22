@@ -647,7 +647,18 @@ class Audio {
     const nowPlusLatency = nowSec + AUDIO_LATENCY_SEC;
     const volume = vm.volume;
     this.startSec = (this.startSec || nowPlusLatency);
+    const bufferSec = AUDIO_FRAMES / this.sampleRate;
     if (this.startSec >= nowSec) {
+      // The emulator is driven by the wall clock and playback by the audio
+      // clock. They drift apart, and any frame where the emulator catches up
+      // (a rAF may run MAX_UPDATE_SEC of emulation at once, and fast-forward
+      // runs more) queues a burst of samples. Both push the queue deeper, and
+      // nothing here used to pull it back, so the delay grew for as long as the
+      // page stayed open — badly on a phone, where slow frames are routine.
+      // Drop samples while the queue is too deep so it drains back towards
+      // AUDIO_LATENCY_SEC. Two buffers of slack keeps normal play from
+      // dropping anything.
+      if (this.startSec - nowSec > AUDIO_LATENCY_SEC + 2 * bufferSec) { return; }
       const buffer = Audio.ctx.createBuffer(2, AUDIO_FRAMES, this.sampleRate);
       const channel0 = buffer.getChannelData(0);
       const channel1 = buffer.getChannelData(1);
@@ -659,7 +670,6 @@ class Audio {
       bufferSource.buffer = buffer;
       bufferSource.connect(Audio.ctx.destination);
       bufferSource.start(this.startSec);
-      const bufferSec = AUDIO_FRAMES / this.sampleRate;
       this.startSec += bufferSec;
     } else {
       console.log(
@@ -691,7 +701,7 @@ class Audio {
   }
 }
 
-Audio.ctx = new AudioContext;
+Audio.ctx = new AudioContext({latencyHint: 'interactive'});
 
 class Video {
   constructor(module, e, el) {
@@ -1152,5 +1162,6 @@ function wireControls() {
     setStatus('No ROM yet — drop a .gb/.gbc file here, or add one to roms/.');
   }
 })();
+
 
 
