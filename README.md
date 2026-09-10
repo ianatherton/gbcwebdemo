@@ -9,22 +9,55 @@ so a 1 MB ROM is by far the biggest thing a visitor downloads.
 
 ## Adding your ROM
 
-1. Copy your build into `roms/` (e.g. `roms/mygame.gbc`).
-2. Add it to `roms/roms.json`:
+Copy your build into `roms/`. There is no second step — the player lists
+whatever `.gb`/`.gbc`/`.bin` files it finds there, under their own filenames,
+so a build doesn't have to be named anything in particular.
 
-   ```json
-   [
-     { "name": "My Game (dev build)", "file": "roms/mygame.gbc" }
-   ]
-   ```
+Static hosting has no "list this directory" call, so discovery uses the two
+listings that do exist: the server's HTML autoindex when you run it locally
+(`python3 -m http.server`), and the GitHub contents API when the site is on
+GitHub Pages. The latter needs a public repo served from the branch the API
+returns — `main`, with the default *Deploy from a branch* setup. If neither is
+available, `roms/roms.json` and drag & drop still work.
 
-The first entry loads automatically. With more than one entry, a dropdown
-appears. To link a tester straight at a specific build:
+The first ROM loads automatically. With more than one, a dropdown appears. To
+link a tester straight at a specific build:
 `https://<you>.github.io/<repo>/?rom=roms/mygame.gbc`
+
+`roms/roms.json` is now optional, and only supplies nicer names and a preferred
+order:
+
+```json
+[
+  { "name": "My Game (dev build)", "file": "roms/mygame.gbc" }
+]
+```
+
+Listed entries sort first, everything else follows alphabetically. An entry
+pointing at a file that has since been renamed is dropped rather than left to
+404.
 
 Testers can also drag any `.gb`/`.gbc` file onto the page (or use **Open ROM…**)
 without it ever being uploaded — the file is read locally in their browser.
 That's the easy path for handing someone a build over Discord.
+
+## Bug guestbook
+
+Below the screen is a bug guestbook: a tester types what went wrong, and the
+page files it with the things that are annoying to reconstruct afterwards —
+when it happened, which ROM was loaded, a short content hash of that ROM, the
+ROM's build date (its `Last-Modified`, or the file's mtime for a dropped
+build), the cartridge header's revision byte, the site's `?v=` tag, the
+browser, and optionally a PNG of the screen at that moment.
+
+That hash is the point of it: "build `3f9a1c22`, built Sep 04 06:05" identifies
+a build exactly, where "the latest one" does not.
+
+There is no server to post to, so entries live in the tester's own
+`localStorage` (newest 50). **Copy all** puts them on the clipboard as Markdown
+and **Download** saves the lot as JSON, screenshots included — that's how a
+report gets back to you. If storage fills up (save states share it), the oldest
+screenshots are dropped before any entry is.
 
 ## Publishing to GitHub Pages
 
@@ -54,7 +87,8 @@ which this site doesn't use, and there is no way to reach the browser's HTTP
 cache from JavaScript. What the page can do is make its requests unable to
 serve stale bytes:
 
-- **ROMs and `roms.json`** are fetched with `cache: 'no-cache'`, which
+- **ROMs, the `roms/` listing, and `roms.json`** are fetched with
+  `cache: 'no-cache'`, which
   revalidates against the server every time. Push a new build, tell a tester to
   reload, and they get it — no waiting, no bookkeeping. Unlike `no-store` this
   still allows a `304 Not Modified`, so an unchanged ROM isn't re-downloaded.
@@ -112,14 +146,15 @@ assets/style.css      page styling
 assets/controller.css on-screen gamepad styling (from GB Studio)
 vendor/binjgb.js      emulator glue, unmodified
 vendor/binjgb.wasm    emulator core, unmodified
-roms/                 your ROMs + roms.json manifest
+roms/                 your ROMs (+ an optional roms.json for names)
 ```
 
 `assets/player.js` is [binjgb](https://github.com/binji/binjgb)'s
 `docs/simple.js` with these changes:
 
-- the ROM is chosen at runtime (`?rom=`, `roms/roms.json`, file picker, or
-  drag & drop) instead of being hardcoded;
+- the ROM is chosen at runtime (`?rom=`, whatever is in `roms/`, file picker,
+  or drag & drop) instead of being hardcoded;
+- a bug guestbook below the screen stamps reports with the build they came from;
 - save data and save states are keyed per ROM in `localStorage`;
 - files that are obviously not cartridges are rejected, and a bad header
   (Nintendo logo / checksum) is reported instead of silently booting noise;

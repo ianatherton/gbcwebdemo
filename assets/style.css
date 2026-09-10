@@ -201,6 +201,126 @@ button:active { transform: translateY(1px); }
 footer { border-top: 1px solid var(--line); padding-top: 12px; }
 footer p { margin: 0; }
 
+/* --- bug guestbook -------------------------------------------------------- */
+
+.guestbook {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.guestbook h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Build stamp: which ROM these reports are about. */
+.gb-build {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+#gb-form { display: flex; flex-direction: column; gap: 8px; }
+
+.gb-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.guestbook input[type="text"], .guestbook textarea {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.guestbook input[type="text"] { flex: 1 1 180px; min-width: 0; }
+.guestbook textarea { width: 100%; resize: vertical; }
+.guestbook ::placeholder { color: var(--muted); opacity: 1; }
+
+#gb-form .gb-row:last-child { justify-content: space-between; }
+
+.gb-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gb-check input { accent-color: var(--accent); }
+
+.gb-list {
+  list-style: none;
+  margin: 14px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gb-list:empty { display: none; }
+
+.gb-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.gb-meta {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.gb-body {
+  grid-column: 1 / -1;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gb-list img {
+  grid-column: 1 / -1;
+  width: 160px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  image-rendering: pixelated;
+}
+
+/* Per-entry delete, quiet until you go near it. */
+.gb-del {
+  padding: 2px 8px;
+  align-self: start;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.gb-del:hover { border-color: var(--line); color: var(--error); }
+
 /* Keep page content clear of the fixed on-screen gamepad (touch devices). */
 body.touch-gamepad { padding-bottom: 240px; }
 

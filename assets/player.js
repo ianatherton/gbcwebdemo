@@ -908,7 +908,9 @@ class Rewind {
 // binjgb's.
 // ---------------------------------------------------------------------------
 
-const MANIFEST_URL = 'roms/roms.json';
+const ROM_DIR = 'roms/';
+const MANIFEST_URL = ROM_DIR + 'roms.json';
+const ROM_EXTENSION = /\.(gbc?|bin)$/i;
 const MIN_ROM_BYTES = 0x8000;  // 32 KB: the smallest possible cartridge
 const MAX_ROM_BYTES = 8 * 1024 * 1024;
 const STORAGE_PREFIX = 'gbcwebdemo';
@@ -921,7 +923,8 @@ const fileInputEl = $('#rom-file');
 const dropHintEl = $('#drop-hint');
 
 let romKey = 'none';       // identifies save data for the loaded ROM
-let currentRom = null;     // {buffer, key, label}
+let currentRom = null;     // {buffer, key, label, modified}
+let currentBuild = null;   // what the guestbook stamps onto a report
 
 function storageKey(kind) {
   return STORAGE_PREFIX + ':' + kind + ':' + romKey;
@@ -952,7 +955,9 @@ function setStatus(message, isError) {
 
 // Don't steal keys while the user is tabbing around the toolbar.
 function isUiTarget(target) {
-  return !!(target && target.closest && target.closest('button, select, input, a'));
+  return !!(target &&
+            target.closest &&
+            target.closest('button, select, input, textarea, a'));
 }
 
 const NINTENDO_LOGO = [
@@ -991,14 +996,37 @@ function romHeaderInfo(buffer) {
     title: title.trim(),
     mode: cgb === 0xc0 ? 'GBC only' : cgb === 0x80 ? 'GBC enhanced' : 'DMG',
     kb: Math.round(bytes.length / 1024),
+    rev: bytes[0x14c],  // mask ROM version number
     headerOk: logoOk && checksum === bytes[0x14d],
   };
 }
 
-async function startRom(buffer, key, label) {
+// A short content hash of the ROM, so "the build I was playing" is a fact in
+// the bug report rather than something to reconstruct later. SHA-256 needs a
+// secure context (https, or localhost); FNV-1a covers plain http.
+async function romFingerprint(buffer) {
+  if (window.crypto && crypto.subtle) {
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', buffer);
+      return Array.from(new Uint8Array(digest).subarray(0, 4))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+    } catch (e) {
+      // Fall through to the plain-JS hash below.
+    }
+  }
+  const bytes = new Uint8Array(buffer);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    hash = Math.imul(hash ^ bytes[i], 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+async function startRom(buffer, key, label, modified) {
   const module = await binjgbPromise;
   romKey = key;
-  currentRom = {buffer, key, label};
+  currentRom = {buffer, key, label, modified: modified || null};
   try {
     Emulator.start(module, buffer, readStoredBytes('extram'));
   } catch (e) {
@@ -1013,6 +1041,16 @@ async function startRom(buffer, key, label) {
   const info = romHeaderInfo(buffer);
   romInfoEl.textContent =
       info ? [info.title || label, info.mode, info.kb + ' KB'].join(' · ') : label;
+  currentBuild = {
+    file: label,
+    title: info ? info.title : '',
+    mode: info ? info.mode : '',
+    kb: info ? info.kb : Math.round(buffer.byteLength / 1024),
+    rev: info ? info.rev : null,
+    id: await romFingerprint(buffer),
+    modified: currentRom.modified,
+  };
+  renderBuildStamp();
   setStatus(
       (info && !info.headerOk ? 'Header looks wrong (bad logo or checksum) — running anyway. ' : '') +
       'Click the screen to enable sound, then press Enter to start.',
@@ -1048,7 +1086,10 @@ async function loadRomFromUrl(path) {
     setStatus(problem, true);
     return;
   }
-  await startRom(buffer, path, path.split('/').pop());
+  // Last-Modified is the closest thing a static host has to a build date.
+  const modified = Date.parse(response.headers.get('Last-Modified') || '');
+  await startRom(buffer, path, path.split('/').pop(),
+                 Number.isNaN(modified) ? null : modified);
 }
 
 async function loadRomFromFile(file) {
@@ -1058,9 +1099,12 @@ async function loadRomFromFile(file) {
     return;
   }
   romSelectEl.value = '';
-  await startRom(await file.arrayBuffer(), 'file:' + file.name, file.name);
+  await startRom(await file.arrayBuffer(), 'file:' + file.name, file.name,
+                 file.lastModified || null);
 }
 
+// roms.json is optional now: it only supplies nicer names and a preferred
+// order. Any ROM sitting in roms/ shows up whether or not it is listed.
 async function loadManifest() {
   try {
     const response = await fetch(MANIFEST_URL, {cache: 'no-cache'});
@@ -1070,6 +1114,94 @@ async function loadManifest() {
   } catch (e) {
     return [];  // No manifest is fine; the file picker still works.
   }
+}
+
+// Static hosting has no "list this directory" call, so try the two listings
+// that exist in practice: an HTML autoindex (python -m http.server, nginx),
+// and — when the site is on GitHub Pages — the repo's contents API.
+async function discoverRoms() {
+  const fromIndex = await listRomsFromAutoindex();
+  if (fromIndex.length) return fromIndex;
+  return listRomsFromGitHub();
+}
+
+// Discovery is a convenience, so never let it hold up the ROM behind it.
+const DISCOVERY_TIMEOUT_MS = 2500;
+
+function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT_MS);
+  return fetch(url, Object.assign({signal: controller.signal}, options))
+      .finally(() => clearTimeout(timer));
+}
+
+async function listRomsFromAutoindex() {
+  try {
+    const response = await fetchWithTimeout(ROM_DIR, {cache: 'no-cache'});
+    if (!response.ok) return [];
+    if (!(response.headers.get('content-type') || '').includes('html')) return [];
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return romPaths(Array.from(doc.querySelectorAll('a[href]'), link => {
+      // Sort links (?C=N;O=D) and parent links fall out at the extension test.
+      const href = link.getAttribute('href') || '';
+      try {
+        return decodeURIComponent(href).split('/').pop();
+      } catch (e) {
+        return href.split('/').pop();
+      }
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
+// https://<user>.github.io/<repo>/ is served from github.com/<user>/<repo>;
+// a user site (no repo path segment) comes from a repo named after the host.
+function githubContentsUrl() {
+  const host = location.hostname.match(/^([\w-]+)\.github\.io$/i);
+  if (!host) return null;
+  const repo = location.pathname.split('/').filter(Boolean)[0] || host[0];
+  return 'https://api.github.com/repos/' + host[1] + '/' + repo + '/contents/' +
+      ROM_DIR.replace(/\/$/, '');
+}
+
+async function listRomsFromGitHub() {
+  const url = githubContentsUrl();
+  if (!url) return [];
+  try {
+    const response =
+        await fetchWithTimeout(url, {headers: {Accept: 'application/vnd.github+json'}});
+    if (!response.ok) return [];  // Private repo, renamed dir, or rate limited.
+    const entries = await response.json();
+    if (!Array.isArray(entries)) return [];
+    return romPaths(entries.filter(e => e && e.type === 'file').map(e => e.name));
+  } catch (e) {
+    return [];
+  }
+}
+
+function romPaths(names) {
+  return names.filter(name => name && ROM_EXTENSION.test(name))
+      .sort((a, b) => a.localeCompare(b))
+      .map(name => ROM_DIR + name);
+}
+
+function romDisplayName(path) {
+  return path.split('/').pop().replace(ROM_EXTENSION, '');
+}
+
+// Manifest entries first (they were listed deliberately), then whatever else
+// is in roms/. When discovery worked we also know which manifest entries are
+// stale, so a renamed ROM can't leave the page auto-loading a 404.
+function mergeRomLists(manifest, discovered) {
+  const present = new Set(discovered);
+  const entries = discovered.length ?
+      manifest.filter(entry => present.has(entry.file)) : manifest.slice();
+  const listed = new Set(entries.map(entry => entry.file));
+  for (const file of discovered) {
+    if (!listed.has(file)) entries.push({name: romDisplayName(file), file});
+  }
+  return entries;
 }
 
 function wireControls() {
@@ -1103,7 +1235,8 @@ function wireControls() {
 
   onClick('#btn-reset', () => {
     if (!currentRom) return;
-    startRom(currentRom.buffer, currentRom.key, currentRom.label);
+    startRom(currentRom.buffer, currentRom.key, currentRom.label,
+             currentRom.modified);
     $('#btn-pause').textContent = 'Pause';
   });
 
@@ -1157,22 +1290,282 @@ function wireControls() {
   dropHintEl.addEventListener('click', () => fileInputEl.click());
 }
 
+// ---------------------------------------------------------------------------
+// Bug guestbook: a tester's notes, stamped with the date and with the exact
+// build they were playing. Kept in this browser's localStorage — there is no
+// server to post to — and exported by hand when it's time to hand them over.
+// ---------------------------------------------------------------------------
+
+const GUESTBOOK_KEY = STORAGE_PREFIX + ':guestbook';
+const GUESTBOOK_MAX = 50;
+
+const gbBuildEl = $('#gb-build');
+const gbFormEl = $('#gb-form');
+const gbWhoEl = $('#gb-who');
+const gbKindEl = $('#gb-kind');
+const gbTextEl = $('#gb-text');
+const gbShotEl = $('#gb-shot');
+const gbListEl = $('#gb-list');
+
+function readGuestbook() {
+  try {
+    const raw = localStorage.getItem(GUESTBOOK_KEY);
+    const entries = raw ? JSON.parse(raw) : [];
+    return Array.isArray(entries) ? entries : [];
+  } catch (e) {
+    console.warn('could not read the guestbook', e);
+    return [];
+  }
+}
+
+function writeGuestbook(entries) {
+  let list = entries.slice(0, GUESTBOOK_MAX);
+  for (;;) {
+    try {
+      localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(list));
+      return list;
+    } catch (e) {
+      // Out of room — save states share this storage and are far bigger. Shed
+      // the oldest screenshot first; only drop whole entries once none are left.
+      let oldestShot = -1;
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].shot) oldestShot = i;
+      }
+      if (oldestShot >= 0) {
+        list = list.slice();
+        list[oldestShot] = Object.assign({}, list[oldestShot], {shot: null});
+      } else if (list.length > 1) {
+        list = list.slice(0, -1);
+      } else {
+        setStatus('No room left in this browser for the guestbook.', true);
+        return readGuestbook();
+      }
+    }
+  }
+}
+
+function localTime(ms) {
+  return new Date(ms).toLocaleString([], {
+    year: 'numeric', month: 'short', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// One line naming the build, so a report is never just "the latest one".
+function buildSummary(build) {
+  if (!build) return 'No ROM loaded';
+  const parts = [build.title || build.file, 'build ' + build.id];
+  if (build.rev) parts.push('rev ' + build.rev);
+  parts.push(build.modified ? 'built ' + localTime(build.modified) :
+                              'build date unknown');
+  if (BUILD_VERSION) parts.push('site v' + BUILD_VERSION);
+  return parts.join(' · ');
+}
+
+function renderBuildStamp() {
+  gbBuildEl.textContent = buildSummary(currentBuild);
+}
+
+// The canvas keeps its drawing buffer (preserveDrawingBuffer on the WebGL
+// renderer), so this grabs whatever is on screen right now.
+function captureScreenshot() {
+  if (!emulator) return null;
+  try {
+    return $('#mainCanvas').toDataURL('image/png');
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderGuestbook() {
+  const entries = readGuestbook();
+  gbListEl.textContent = '';
+  for (const entry of entries) {
+    const item = document.createElement('li');
+
+    const meta = document.createElement('div');
+    meta.className = 'gb-meta';
+    meta.textContent = [
+      localTime(entry.at),
+      entry.kind,
+      entry.who || 'anonymous',
+      entry.rom + ' @ ' + entry.build,
+    ].join(' · ');
+    item.appendChild(meta);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'gb-del';
+    del.textContent = 'Delete';
+    del.title = 'Delete this entry';
+    del.addEventListener('click', () => {
+      writeGuestbook(readGuestbook().filter(other => other.id !== entry.id));
+      renderGuestbook();
+    });
+    item.appendChild(del);
+
+    const body = document.createElement('p');
+    body.className = 'gb-body';
+    body.textContent = entry.text;
+    item.appendChild(body);
+
+    if (entry.shot) {
+      const img = document.createElement('img');
+      img.src = entry.shot;
+      img.alt = 'Screen at the time of the report';
+      item.appendChild(img);
+    }
+
+    gbListEl.appendChild(item);
+  }
+}
+
+function addGuestbookEntry() {
+  const text = gbTextEl.value.trim();
+  if (!text) return;
+  const now = Date.now();
+  const entry = {
+    id: now + '-' + Math.random().toString(36).slice(2, 8),
+    at: now,
+    who: gbWhoEl.value.trim(),
+    kind: gbKindEl.value,
+    text: text,
+    rom: currentBuild ? currentBuild.file : 'no ROM',
+    title: currentBuild ? currentBuild.title : '',
+    build: currentBuild ? currentBuild.id : 'none',
+    built: currentBuild ? currentBuild.modified : null,
+    rev: currentBuild ? currentBuild.rev : null,
+    site: BUILD_VERSION,
+    ua: navigator.userAgent,
+    shot: gbShotEl.checked ? captureScreenshot() : null,
+  };
+  writeGuestbook([entry].concat(readGuestbook()));
+  renderGuestbook();
+  gbTextEl.value = '';
+  try {
+    localStorage.setItem(STORAGE_PREFIX + ':reporter', entry.who);
+  } catch (e) {
+    // Remembering the name is a convenience; not worth reporting.
+  }
+  setStatus('Logged at ' + localTime(now) + '.');
+}
+
+function guestbookMarkdown() {
+  const entries = readGuestbook();
+  const lines = [
+    '# Bug guestbook — GBC Web Player',
+    '',
+    'Exported ' + new Date().toISOString() + ' — ' + entries.length +
+        (entries.length === 1 ? ' entry' : ' entries'),
+    '',
+  ];
+  entries.forEach((entry, i) => {
+    lines.push('## ' + (i + 1) + '. ' + entry.kind + ' — ' + localTime(entry.at));
+    lines.push('');
+    lines.push('- When: ' + new Date(entry.at).toISOString());
+    lines.push('- Who: ' + (entry.who || 'anonymous'));
+    lines.push('- ROM: ' + entry.rom + (entry.title ? ' (' + entry.title + ')' : '') +
+               (entry.rev ? ' rev ' + entry.rev : ''));
+    lines.push('- Build: ' + entry.build +
+               (entry.built ? ', built ' + new Date(entry.built).toISOString() :
+                              ', build date unknown'));
+    lines.push('- Site: v' + (entry.site || '?'));
+    lines.push('- Browser: ' + entry.ua);
+    if (entry.shot) lines.push('- Screenshot: in the JSON download');
+    lines.push('');
+    lines.push(entry.text);
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+function downloadGuestbook() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const blob = new Blob([JSON.stringify(readGuestbook(), null, 2)],
+                        {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'bug-guestbook-' + stamp + '.json';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function wireGuestbook() {
+  try {
+    gbWhoEl.value = localStorage.getItem(STORAGE_PREFIX + ':reporter') || '';
+  } catch (e) {
+    // No stored name; the field just starts empty.
+  }
+
+  gbFormEl.addEventListener('submit', event => {
+    event.preventDefault();
+    addGuestbookEntry();
+  });
+
+  // Ctrl/Cmd+Enter submits without reaching for the mouse.
+  gbTextEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      addGuestbookEntry();
+    }
+  });
+
+  $('#gb-copy').addEventListener('click', async () => {
+    if (!readGuestbook().length) {
+      setStatus('The guestbook is empty.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(guestbookMarkdown());
+      setStatus('Guestbook copied to the clipboard.');
+    } catch (e) {
+      setStatus('Could not copy: ' + e.message + ' — use Download instead.', true);
+    }
+  });
+
+  $('#gb-download').addEventListener('click', () => {
+    if (!readGuestbook().length) {
+      setStatus('The guestbook is empty.');
+      return;
+    }
+    downloadGuestbook();
+  });
+
+  $('#gb-clear').addEventListener('click', () => {
+    const count = readGuestbook().length;
+    if (!count) return;
+    if (!confirm('Delete all ' + count + ' guestbook entries from this browser?')) {
+      return;
+    }
+    writeGuestbook([]);
+    renderGuestbook();
+    setStatus('Guestbook cleared.');
+  });
+
+  renderBuildStamp();
+  renderGuestbook();
+}
+
 (async function boot() {
   wireControls();
+  wireGuestbook();
 
-  const manifest = await loadManifest();
-  for (const entry of manifest) {
+  const [manifest, discovered] =
+      await Promise.all([loadManifest(), discoverRoms()]);
+  const roms = mergeRomLists(manifest, discovered);
+  for (const entry of roms) {
     const option = document.createElement('option');
     option.value = entry.file;
     option.textContent = entry.name || entry.file;
     romSelectEl.appendChild(option);
   }
-  romSelectEl.hidden = manifest.length === 0;
+  romSelectEl.hidden = roms.length === 0;
 
   const requested = new URLSearchParams(location.search).get('rom');
-  const path = requested || (manifest.length ? manifest[0].file : null);
+  const path = requested || (roms.length ? roms[0].file : null);
   if (path) {
-    romSelectEl.value = manifest.some(e => e.file === path) ? path : '';
+    romSelectEl.value = roms.some(e => e.file === path) ? path : '';
     await loadRomFromUrl(path);
   } else {
     setStatus('No ROM yet — drop a .gb/.gbc file here, or add one to roms/.');
