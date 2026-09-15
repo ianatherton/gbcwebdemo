@@ -264,6 +264,25 @@ footer p { margin: 0; }
 
 .gb-check input { accent-color: var(--accent); }
 
+/* Off-screen rather than display:none — bots skip fields they can tell are
+   hidden, and this one is meant to be filled in. */
+.gb-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.gb-status {
+  margin: 10px 0 0;
+  min-height: 1.5em;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.gb-status.error { color: var(--error); }
+
 .gb-list {
   list-style: none;
   margin: 14px 0;
@@ -276,14 +295,19 @@ footer p { margin: 0; }
 .gb-list:empty { display: none; }
 
 .gb-list li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
 }
+
+/* Written but not yet accepted by the shared board. */
+.gb-pending { border-style: dashed; }
+.gb-pending .gb-meta { color: var(--error); }
 
 .gb-meta {
   color: var(--muted);
@@ -293,33 +317,19 @@ footer p { margin: 0; }
 }
 
 .gb-body {
-  grid-column: 1 / -1;
   margin: 0;
+  align-self: stretch;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .gb-list img {
-  grid-column: 1 / -1;
   width: 160px;
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 4px;
   image-rendering: pixelated;
 }
-
-/* Per-entry delete, quiet until you go near it. */
-.gb-del {
-  padding: 2px 8px;
-  align-self: start;
-  border-color: transparent;
-  background: none;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.gb-del:hover { border-color: var(--line); color: var(--error); }
 
 /* Keep page content clear of the fixed on-screen gamepad (touch devices). */
 body.touch-gamepad { padding-bottom: 240px; }

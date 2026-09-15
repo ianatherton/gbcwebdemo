@@ -18,6 +18,10 @@ const ENABLE_REWIND = true;
 const ENABLE_PAUSE = true;
 const ENABLE_SWITCH_PALETTES = true;
 const OSGP_DEADZONE = 0.1;    // On screen gamepad deadzone range
+// Shared bug guestbook. Empty means the guestbook stays local to each tester's
+// browser. Point it at your deployed Worker (no trailing slash) and posts go to
+// a board everyone sees — see guestbook/README.md.
+const GUESTBOOK_ENDPOINT = '';
 // 0: none (raw RGB), 1: SameBoy "emulate hardware", 2: Gambatte/Game Boy
 // Online. Upstream defaults to 2, which imitates a real GBC's washed-out
 // screen; 0 keeps the colors as the game authored them.
@@ -1292,12 +1296,20 @@ function wireControls() {
 
 // ---------------------------------------------------------------------------
 // Bug guestbook: a tester's notes, stamped with the date and with the exact
-// build they were playing. Kept in this browser's localStorage — there is no
-// server to post to — and exported by hand when it's time to hand them over.
+// build they were playing.
+//
+// Every entry is written to this browser's localStorage first, so a report is
+// never lost to a failed request. With GUESTBOOK_ENDPOINT set it is then posted
+// to the Worker in guestbook/, and the page shows that shared board instead —
+// screenshots stay local either way. With no endpoint the log is simply local,
+// and Copy all / Download are how it gets handed over.
 // ---------------------------------------------------------------------------
 
 const GUESTBOOK_KEY = STORAGE_PREFIX + ':guestbook';
 const GUESTBOOK_MAX = 50;
+
+let sharedEntries = [];    // the board, as last fetched from the Worker
+let sharedError = '';
 
 const gbBuildEl = $('#gb-build');
 const gbFormEl = $('#gb-form');
@@ -1306,6 +1318,13 @@ const gbKindEl = $('#gb-kind');
 const gbTextEl = $('#gb-text');
 const gbShotEl = $('#gb-shot');
 const gbListEl = $('#gb-list');
+const gbStatusEl = $('#gb-status');
+const gbNoteEl = $('#gb-note');
+const gbTrapEl = $('#gb-website');
+
+function guestbookIsShared() {
+  return !!GUESTBOOK_ENDPOINT;
+}
 
 function readGuestbook() {
   try {
@@ -1337,11 +1356,94 @@ function writeGuestbook(entries) {
       } else if (list.length > 1) {
         list = list.slice(0, -1);
       } else {
-        setStatus('No room left in this browser for the guestbook.', true);
+        setGuestbookStatus('No room left in this browser for the guestbook.',
+                           true);
         return readGuestbook();
       }
     }
   }
+}
+
+async function fetchSharedEntries() {
+  if (!guestbookIsShared()) return;
+  try {
+    const response =
+        await fetch(GUESTBOOK_ENDPOINT + '/entries', {cache: 'no-store'});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const body = await response.json();
+    sharedEntries = Array.isArray(body.entries) ? body.entries : [];
+    sharedError = '';
+  } catch (e) {
+    sharedError = 'Could not reach the shared guestbook (' + e.message +
+        '). Showing what this browser has.';
+  }
+}
+
+// Screenshots are deliberately left behind: the shared board is text, which is
+// what keeps the Worker small and inside its free tier.
+async function postEntry(entry) {
+  const response = await fetch(GUESTBOOK_ENDPOINT + '/entries', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      id: entry.id,
+      who: entry.who,
+      kind: entry.kind,
+      text: entry.text,
+      rom: entry.rom,
+      title: entry.title,
+      build: entry.build,
+      built: entry.built,
+      rev: entry.rev,
+      site: entry.site,
+      ua: entry.ua,
+      website: gbTrapEl ? gbTrapEl.value : '',
+    }),
+  });
+  if (!response.ok) {
+    let message = 'HTTP ' + response.status;
+    try {
+      message = (await response.json()).error || message;
+    } catch (e) {
+      // Keep the status code as the message.
+    }
+    throw new Error(message);
+  }
+}
+
+function markSent(id) {
+  writeGuestbook(readGuestbook().map(
+      entry => entry.id === id ? Object.assign({}, entry, {sent: true}) : entry));
+}
+
+// Anything written while the Worker was unreachable is still in localStorage;
+// push it on the next load, oldest first, and give up quietly if still offline.
+async function flushPending() {
+  if (!guestbookIsShared()) return;
+  const pending = readGuestbook().filter(entry => !entry.sent).reverse();
+  for (const entry of pending) {
+    try {
+      await postEntry(entry);
+      markSent(entry.id);
+    } catch (e) {
+      return;
+    }
+  }
+}
+
+// What the page shows. On a shared board that's the server's entries, with each
+// tester's own screenshots reattached locally by id, plus anything of theirs
+// that hasn't been accepted yet.
+function guestbookBoard() {
+  const local = readGuestbook();
+  if (!guestbookIsShared()) return local;
+  const shots = new Map(
+      local.filter(entry => entry.shot).map(entry => [entry.id, entry.shot]));
+  const shared = sharedEntries.map(
+      entry => Object.assign({}, entry, {shot: shots.get(entry.id) || null}));
+  const pending = local.filter(entry => !entry.sent)
+      .map(entry => Object.assign({}, entry, {pending: true}));
+  return pending.concat(shared);
 }
 
 function localTime(ms) {
@@ -1378,10 +1480,11 @@ function captureScreenshot() {
 }
 
 function renderGuestbook() {
-  const entries = readGuestbook();
+  const entries = guestbookBoard();
   gbListEl.textContent = '';
   for (const entry of entries) {
     const item = document.createElement('li');
+    if (entry.pending) item.className = 'gb-pending';
 
     const meta = document.createElement('div');
     meta.className = 'gb-meta';
@@ -1390,19 +1493,8 @@ function renderGuestbook() {
       entry.kind,
       entry.who || 'anonymous',
       entry.rom + ' @ ' + entry.build,
-    ].join(' · ');
+    ].join(' · ') + (entry.pending ? ' · not posted yet' : '');
     item.appendChild(meta);
-
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'gb-del';
-    del.textContent = 'Delete';
-    del.title = 'Delete this entry';
-    del.addEventListener('click', () => {
-      writeGuestbook(readGuestbook().filter(other => other.id !== entry.id));
-      renderGuestbook();
-    });
-    item.appendChild(del);
 
     const body = document.createElement('p');
     body.className = 'gb-body';
@@ -1420,7 +1512,7 @@ function renderGuestbook() {
   }
 }
 
-function addGuestbookEntry() {
+async function addGuestbookEntry() {
   const text = gbTextEl.value.trim();
   if (!text) return;
   const now = Date.now();
@@ -1438,7 +1530,9 @@ function addGuestbookEntry() {
     site: BUILD_VERSION,
     ua: navigator.userAgent,
     shot: gbShotEl.checked ? captureScreenshot() : null,
+    sent: false,
   };
+  // Always land it locally first, so a report is never lost to a failed post.
   writeGuestbook([entry].concat(readGuestbook()));
   renderGuestbook();
   gbTextEl.value = '';
@@ -1447,11 +1541,32 @@ function addGuestbookEntry() {
   } catch (e) {
     // Remembering the name is a convenience; not worth reporting.
   }
-  setStatus('Logged at ' + localTime(now) + '.');
+
+  if (!guestbookIsShared()) {
+    setGuestbookStatus('Logged at ' + localTime(now) + '.');
+    return;
+  }
+  setGuestbookStatus('Posting…');
+  try {
+    await postEntry(entry);
+    markSent(entry.id);
+    await fetchSharedEntries();
+    renderGuestbook();
+    setGuestbookStatus('Posted at ' + localTime(now) + '.');
+  } catch (e) {
+    renderGuestbook();
+    setGuestbookStatus('Kept in this browser — could not post: ' + e.message +
+                       '. It will go up next time the page loads.', true);
+  }
+}
+
+function setGuestbookStatus(message, isError) {
+  gbStatusEl.textContent = message || '';
+  gbStatusEl.classList.toggle('error', !!isError);
 }
 
 function guestbookMarkdown() {
-  const entries = readGuestbook();
+  const entries = guestbookBoard();
   const lines = [
     '# Bug guestbook — GBC Web Player',
     '',
@@ -1481,7 +1596,7 @@ function guestbookMarkdown() {
 
 function downloadGuestbook() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const blob = new Blob([JSON.stringify(readGuestbook(), null, 2)],
+  const blob = new Blob([JSON.stringify(guestbookBoard(), null, 2)],
                         {type: 'application/json'});
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -1512,21 +1627,22 @@ function wireGuestbook() {
   });
 
   $('#gb-copy').addEventListener('click', async () => {
-    if (!readGuestbook().length) {
-      setStatus('The guestbook is empty.');
+    if (!guestbookBoard().length) {
+      setGuestbookStatus('The guestbook is empty.');
       return;
     }
     try {
       await navigator.clipboard.writeText(guestbookMarkdown());
-      setStatus('Guestbook copied to the clipboard.');
+      setGuestbookStatus('Guestbook copied to the clipboard.');
     } catch (e) {
-      setStatus('Could not copy: ' + e.message + ' — use Download instead.', true);
+      setGuestbookStatus(
+          'Could not copy: ' + e.message + ' — use Download instead.', true);
     }
   });
 
   $('#gb-download').addEventListener('click', () => {
-    if (!readGuestbook().length) {
-      setStatus('The guestbook is empty.');
+    if (!guestbookBoard().length) {
+      setGuestbookStatus('The guestbook is empty.');
       return;
     }
     downloadGuestbook();
@@ -1535,16 +1651,37 @@ function wireGuestbook() {
   $('#gb-clear').addEventListener('click', () => {
     const count = readGuestbook().length;
     if (!count) return;
-    if (!confirm('Delete all ' + count + ' guestbook entries from this browser?')) {
-      return;
-    }
+    const warning = guestbookIsShared() ?
+        'Clear this browser\'s copy of ' + count + ' entries, including their ' +
+            'screenshots? Posts already on the shared board stay there.' :
+        'Delete all ' + count + ' guestbook entries from this browser?';
+    if (!confirm(warning)) return;
     writeGuestbook([]);
     renderGuestbook();
-    setStatus('Guestbook cleared.');
+    setGuestbookStatus('This browser\'s copy was cleared.');
   });
+
+  if (guestbookIsShared()) {
+    gbNoteEl.textContent =
+        'Posts go to a shared board everyone can read, and can\'t be edited or ' +
+        'deleted once sent. Each is stamped with the date, the ROM\'s build id ' +
+        'and build date, and the browser. Screenshots are not uploaded — they ' +
+        'stay in this browser and come along in Download.';
+  }
 
   renderBuildStamp();
   renderGuestbook();
+  refreshGuestbook();
+}
+
+// On load: push anything that didn't make it up last time, then pull the board.
+async function refreshGuestbook() {
+  if (!guestbookIsShared()) return;
+  setGuestbookStatus('Loading the guestbook…');
+  await flushPending();
+  await fetchSharedEntries();
+  renderGuestbook();
+  setGuestbookStatus(sharedError, !!sharedError);
 }
 
 (async function boot() {

@@ -53,11 +53,64 @@ browser, and optionally a PNG of the screen at that moment.
 That hash is the point of it: "build `3f9a1c22`, built Sep 04 06:05" identifies
 a build exactly, where "the latest one" does not.
 
-There is no server to post to, so entries live in the tester's own
-`localStorage` (newest 50). **Copy all** puts them on the clipboard as Markdown
-and **Download** saves the lot as JSON, screenshots included — that's how a
-report gets back to you. If storage fills up (save states share it), the oldest
-screenshots are dropped before any entry is.
+Every entry is written to the tester's own `localStorage` first, so nothing is
+lost to a failed request. What happens next depends on one setting.
+
+### Local, out of the box
+
+Leave `GUESTBOOK_ENDPOINT` empty in `assets/player.js` and the log stays in each
+tester's browser (newest 50). **Copy all** puts it on the clipboard as Markdown,
+**Download** saves it as JSON with the screenshots — that's how a report gets
+back to you. If storage fills up (save states share it), the oldest screenshots
+are dropped before any entry is.
+
+### Shared, with the Worker
+
+A 90s guestbook was a `guestbook.cgi` appending to a text file — it needed a
+server, and GitHub Pages deliberately isn't one. `guestbook/` holds the smallest
+thing that closes that gap: a Cloudflare Worker storing plain text in Workers
+KV, one key per entry. Deploy it (see `guestbook/README.md`), put the URL in
+`assets/player.js`:
+
+```js
+const GUESTBOOK_ENDPOINT = 'https://gbc-guestbook.<you>.workers.dev';
+```
+
+and the page shows a board every tester can read, with no account and no login —
+they type and hit **Log it**. The site stays as static as it was; only the
+guestbook's text leaves it. Screenshots are never uploaded: they stay in the
+tester's browser and ride along in **Download**.
+
+Posts are immutable — nothing a visitor can send edits or deletes someone else's
+entry, and **Clear all** only ever wipes that browser's own copy. Removing a
+post needs the `ADMIN_TOKEN` secret, which lives in Cloudflare. Writes are rate
+limited to 10/hour per IP, with a honeypot field for bots and a 200-entry cap.
+
+If the Worker is unreachable the entry is kept locally, marked *not posted yet*,
+and pushed on the next page load.
+
+## Hosting on Cloudflare instead
+
+GitHub Pages can't run the guestbook, so if you want the shared board on your
+own domain, one Cloudflare Worker can serve both. `wrangler.toml` in this
+directory points `[assets]` at the repo root: static files are handed straight
+out, and only `/entries` reaches `guestbook/worker.js`. Same origin, one
+deployment, no CORS.
+
+Connect the repo in the Cloudflare dashboard and every push rebuilds and
+redeploys — `guestbook/README.md` has the click-by-click. Set the **build
+command** to `node tools/gen-roms.mjs`, which regenerates `roms/roms.json` from
+whatever is in `roms/`. That matters off GitHub Pages: neither of the player's
+two discovery routes (a local server's directory listing, the GitHub contents
+API on `github.io`) exists on a custom domain, so the manifest has to be real by
+the time the files are uploaded. Run it by hand any time as well:
+
+```sh
+node tools/gen-roms.mjs
+```
+
+Nothing stops you keeping GitHub Pages running alongside as a mirror; the page
+behaves the same on both.
 
 ## Publishing to GitHub Pages
 
@@ -147,6 +200,9 @@ assets/controller.css on-screen gamepad styling (from GB Studio)
 vendor/binjgb.js      emulator glue, unmodified
 vendor/binjgb.wasm    emulator core, unmodified
 roms/                 your ROMs (+ an optional roms.json for names)
+guestbook/            optional Cloudflare Worker behind the shared guestbook
+tools/gen-roms.mjs    rebuilds roms/roms.json from the directory
+wrangler.toml         Cloudflare config, when hosting there instead of Pages
 ```
 
 `assets/player.js` is [binjgb](https://github.com/binji/binjgb)'s

@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "name": "gbc-rog9-14",
+    "file": "roms/gbc-rog9-14.gbc"
+  },
+  {
+    "name": "gbc-rog9-3",
+    "file": "roms/gbc-rog9-3.gbc"
+  }
+]

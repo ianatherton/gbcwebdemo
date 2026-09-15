@@ -1,0 +1,27 @@
+# One Worker serves the whole site.
+#
+# Static files in this directory are handed straight out; anything that isn't a
+# file — i.e. /entries — falls through to guestbook/worker.js. That means the
+# page and the guestbook share an origin, so no CORS is involved at all.
+#
+# Cloudflare builds and deploys this on every push once the repo is connected;
+# see guestbook/README.md.
+
+name = "gbcwebdemo"
+main = "guestbook/worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./"
+
+[vars]
+# Only consulted for cross-origin requests, which the page itself never makes
+# now that it is same-origin. Narrow it to your domain if you ever point another
+# site at this Worker; the per-IP rate limit is the real guard either way.
+ALLOWED_ORIGIN = "*"
+
+# Create this in the dashboard (Storage & Databases -> KV) or with
+# `npx wrangler kv namespace create GUESTBOOK`, then paste the id here.
+[[kv_namespaces]]
+binding = "GUESTBOOK"
+id = "92372a2ed97043998cee91e9a3724120"

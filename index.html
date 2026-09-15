@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1f2b'/%3E%3Crect x='3' y='3' width='10' height='8' rx='1' fill='%237dd3a0'/%3E%3Ccircle cx='11.5' cy='13' r='1.2' fill='%23e7ecf5'/%3E%3Crect x='3' y='12.3' width='4' height='1.4' rx='.7' fill='%23e7ecf5'/%3E%3C/svg%3E">
 <!-- Bump ?v= on every deploy so browsers fetch the new files instead of
      serving cached ones. See the Caching section of README.md. -->
-<link rel="stylesheet" href="assets/controller.css?v=2">
-<link rel="stylesheet" href="assets/style.css?v=2">
+<link rel="stylesheet" href="assets/controller.css?v=4">
+<link rel="stylesheet" href="assets/style.css?v=4">
 </head>
 <body>
 
@@ -43,6 +43,24 @@
 
   <p id="status" role="status">Starting…</p>
 
+  <section class="help">
+    <h2>Controls</h2>
+    <dl>
+      <div><dt>D-pad</dt><dd>Arrow keys</dd></div>
+      <div><dt>A / B</dt><dd>X / Z</dd></div>
+      <div><dt>Start / Select</dt><dd>Enter / Right Shift</dd></div>
+      <div><dt>Fast forward</dt><dd>Left Shift (hold)</dd></div>
+      <div><dt>Rewind</dt><dd>Backspace (hold)</dd></div>
+      <div><dt>Pause</dt><dd>Space</dd></div>
+      <div><dt>Save / load state</dt><dd>F6 / F9</dd></div>
+      <div><dt>DMG palette</dt><dd>[ and ]</dd></div>
+    </dl>
+    <p class="note">
+      Touch devices get an on-screen gamepad. Battery saves and save states are kept
+      in this browser's local storage, per ROM — they are not uploaded anywhere.
+    </p>
+  </section>
+
   <section class="guestbook" id="guestbook">
     <h2>Bug guestbook</h2>
     <p id="gb-build" class="gb-build">No ROM loaded</p>
@@ -62,6 +80,10 @@
       </div>
       <textarea id="gb-text" rows="3" maxlength="2000" required
                 placeholder="What happened? Where were you, and what did you press?"></textarea>
+      <!-- Honeypot: hidden from people, irresistible to bots. A post that
+           fills it in is dropped by the Worker. -->
+      <input type="text" id="gb-website" name="website" tabindex="-1"
+             autocomplete="off" aria-hidden="true" class="gb-trap">
       <div class="gb-row">
         <label class="gb-check">
           <input type="checkbox" id="gb-shot" checked> Attach screenshot
@@ -69,6 +91,8 @@
         <button type="submit">Log it</button>
       </div>
     </form>
+
+    <p id="gb-status" class="gb-status" role="status"></p>
 
     <ol id="gb-list" class="gb-list"></ol>
 
@@ -78,29 +102,11 @@
       <button type="button" id="gb-clear">Clear all</button>
     </div>
 
-    <p class="note">
+    <p id="gb-note" class="note">
       Entries stay in this browser — nothing is uploaded. Each one is stamped with
       the date, the ROM's build id and build date, and the browser, so a report can
       always be tied back to the build it came from. Use <strong>Copy all</strong> or
       <strong>Download</strong> to hand them over.
-    </p>
-  </section>
-
-  <section class="help">
-    <h2>Controls</h2>
-    <dl>
-      <div><dt>D-pad</dt><dd>Arrow keys</dd></div>
-      <div><dt>A / B</dt><dd>X / Z</dd></div>
-      <div><dt>Start / Select</dt><dd>Enter / Right Shift</dd></div>
-      <div><dt>Fast forward</dt><dd>Left Shift (hold)</dd></div>
-      <div><dt>Rewind</dt><dd>Backspace (hold)</dd></div>
-      <div><dt>Pause</dt><dd>Space</dd></div>
-      <div><dt>Save / load state</dt><dd>F6 / F9</dd></div>
-      <div><dt>DMG palette</dt><dd>[ and ]</dd></div>
-    </dl>
-    <p class="note">
-      Touch devices get an on-screen gamepad. Battery saves and save states are kept
-      in this browser's local storage, per ROM — they are not uploaded anywhere.
     </p>
   </section>
 </main>
@@ -130,7 +136,7 @@
   </p>
 </footer>
 
-<script src="vendor/binjgb.js?v=2"></script>
-<script src="assets/player.js?v=2"></script>
+<script src="vendor/binjgb.js?v=4"></script>
+<script src="assets/player.js?v=4"></script>
 </body>
 </html>
