@@ -11,7 +11,8 @@
 //
 // Safe to run by hand and commit the result, too.
 
-import {readdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 
 const ROM_DIR = 'roms';
 const MANIFEST = ROM_DIR + '/roms.json';
@@ -25,6 +26,23 @@ try {
 } catch (e) {
   // No manifest yet, or it's unreadable — rebuild it from scratch.
 }
+// When was this build actually made? Cloudflare's asset server sends no
+// Last-Modified header, so the page can't ask at load time the way it can on
+// GitHub Pages — record it here instead. The file's last commit is the honest
+// answer; a fresh checkout's mtime is just the clone time, so it's the fallback.
+function builtAt(file) {
+  try {
+    const iso = execFileSync('git', ['log', '-1', '--format=%cI', '--', file], {
+                  encoding: 'utf8',
+                  stdio: ['ignore', 'pipe', 'ignore'],
+                }).trim();
+    if (iso) return iso;
+  } catch (e) {
+    // Not a git checkout, or a shallow one that doesn't reach this file.
+  }
+  return statSync(file).mtime.toISOString();
+}
+
 const chosenNames = new Map(
     existing.filter(entry => entry && entry.file && entry.name)
         .map(entry => [entry.file, entry.name]));
@@ -37,6 +55,7 @@ const entries = readdirSync(ROM_DIR)
       return {
         name: chosenNames.get(file) || name.replace(ROM_EXTENSION, ''),
         file,
+        built: builtAt(file),
       };
     });
 

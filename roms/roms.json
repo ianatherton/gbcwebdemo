@@ -1,10 +1,12 @@
 [
   {
     "name": "gbc-rog9-14",
-    "file": "roms/gbc-rog9-14.gbc"
+    "file": "roms/gbc-rog9-14.gbc",
+    "built": "2026-09-14T19:20:44-07:00"
   },
   {
     "name": "gbc-rog9-3",
-    "file": "roms/gbc-rog9-3.gbc"
+    "file": "roms/gbc-rog9-3.gbc",
+    "built": "2026-09-10T11:25:17-07:00"
   }
 ]

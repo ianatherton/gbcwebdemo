@@ -53,16 +53,39 @@ wrangler on demand; it needs Node 20 or newer.
 
 | | |
 | --- | --- |
-| `GET /entries` | `{"entries": [...]}`, newest first, up to 200 |
+| `GET /entries` | newest 10; `{"entries": [...], "cursor": ..., "done": false}` |
 | `POST /entries` | JSON body; returns `{"ok": true, "entry": {...}}` |
 | `DELETE /entries?id=<id>` | needs `Authorization: Bearer <ADMIN_TOKEN>` |
 
+`GET` takes `limit` (1–50, default 10), `cursor` (from the previous response,
+to continue), `kind` and `rom` (to filter). `done` is `true` once there is
+nothing left; `cursor` is `null` there too.
+
 ```sh
 curl https://yourdomain.com/entries
+curl "https://yourdomain.com/entries?kind=Audio&limit=20"
+curl "https://yourdomain.com/entries?cursor=<cursor from last response>"
 
 curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
   "https://yourdomain.com/entries?id=<entry id>"
 ```
+
+### Why it pages
+
+Reading the whole board on every page load is the expensive part of a guestbook
+on KV — it costs one read per entry, per visitor, so the bill grows with the
+product of board size and traffic. A 200-entry board at 201 reads a load runs
+out of the free tier's 100,000 daily reads after about 500 visits.
+
+Ten at a time makes that 11 reads a load, or roughly 9,000 visits a day, and it
+stops mattering how big the board gets. **Load more** walks the cursor; the kind
+and ROM filters are applied server-side so they search the whole board, not just
+what is on screen.
+
+Filtering does have to read entries to test them, so it walks KV a page at a
+time and stops on a page boundary — the cursor stays aligned, nothing is
+skipped — and never scans more than 5 pages per request. That cost lands only
+when someone actually clicks a filter, not on every visit.
 
 ## What's guarded, and what isn't
 

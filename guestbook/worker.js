@@ -6,7 +6,7 @@
  * KV, one key per entry rather than one big file, so two testers posting at the
  * same moment can't clobber each other's write.
  *
- *   GET    /entries          newest entries first
+ *   GET    /entries          newest entries first, a page at a time
  *   POST   /entries          add one (JSON body)
  *   DELETE /entries?id=...   moderation; needs the ADMIN_TOKEN secret
  *
@@ -14,6 +14,10 @@
  */
 
 const MAX_ENTRIES = 200;    // Older entries are trimmed away past this.
+const DEFAULT_LIMIT = 10;   // A page load only ever needs the newest few.
+const MAX_LIMIT = 50;
+const SCAN_PAGE = 100;      // Keys pulled per KV list call while filtering.
+const MAX_SCANS = 5;        // Ceiling on the work one filtered request can do.
 const MAX_TEXT = 2000;      // Matches the textarea's maxlength on the page.
 const MAX_FIELD = 80;
 const POSTS_PER_HOUR = 10;  // Per IP.
@@ -28,7 +32,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== '/entries') return json({error: 'not found'}, 404, cors);
 
-    if (request.method === 'GET') return listEntries(env, cors);
+    if (request.method === 'GET') return listEntries(url, env, cors);
     if (request.method === 'POST') return addEntry(request, env, cors);
     if (request.method === 'DELETE') return deleteEntry(url, request, env, cors);
     return json({error: 'method not allowed'}, 405, cors);
@@ -57,11 +61,55 @@ function entryKey(at) {
       Math.random().toString(36).slice(2, 8);
 }
 
-async function listEntries(env, cors) {
-  const list = await env.GUESTBOOK.list({prefix: 'e:', limit: MAX_ENTRIES});
-  const entries = await Promise.all(
-      list.keys.map(key => env.GUESTBOOK.get(key.name, {type: 'json'})));
-  return json({entries: entries.filter(Boolean)}, 200, cors);
+// Reading the whole board on every page load is what makes a busy guestbook
+// expensive: one KV read per entry, per visitor. So hand back a page at a time.
+// `cursor` from the previous response continues where it left off.
+//
+//   /entries                     newest DEFAULT_LIMIT
+//   /entries?limit=20&cursor=... the next 20
+//   /entries?kind=Audio          only that kind
+//   /entries?rom=mygame.gbc      only reports against that ROM
+//
+// Filtering has to read entries to test them, so it walks whole KV pages and
+// stops on a page boundary — that keeps the cursor aligned, so nothing is
+// skipped — and never scans more than MAX_SCANS pages in one request.
+async function listEntries(url, env, cors) {
+  const params = url.searchParams;
+  const limit = clampLimit(params.get('limit'));
+  const kind = clean(params.get('kind'), MAX_FIELD);
+  const rom = clean(params.get('rom'), MAX_FIELD);
+  const filtered = !!(kind || rom);
+
+  let cursor = params.get('cursor') || undefined;
+  const entries = [];
+  let done = false;
+
+  for (let scan = 0; scan < MAX_SCANS; scan++) {
+    const page = await env.GUESTBOOK.list(
+        {prefix: 'e:', limit: filtered ? SCAN_PAGE : limit, cursor});
+    const loaded = await Promise.all(
+        page.keys.map(key => env.GUESTBOOK.get(key.name, {type: 'json'})));
+    for (const entry of loaded) {
+      if (!entry) continue;
+      if (kind && entry.kind !== kind) continue;
+      if (rom && entry.rom !== rom) continue;
+      entries.push(entry);
+    }
+    cursor = page.list_complete ? null : page.cursor;
+    if (!cursor) {
+      done = true;
+      break;
+    }
+    if (entries.length >= limit) break;
+  }
+
+  return json({entries, cursor: cursor || null, done}, 200, cors);
+}
+
+function clampLimit(value) {
+  const limit = parseInt(value, 10);
+  if (!Number.isFinite(limit) || limit < 1) return DEFAULT_LIMIT;
+  return Math.min(limit, MAX_LIMIT);
 }
 
 async function addEntry(request, env, cors) {

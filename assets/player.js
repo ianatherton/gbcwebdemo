@@ -21,7 +21,7 @@ const OSGP_DEADZONE = 0.1;    // On screen gamepad deadzone range
 // Shared bug guestbook. Empty means the guestbook stays local to each tester's
 // browser. Point it at your deployed Worker (no trailing slash) and posts go to
 // a board everyone sees — see guestbook/README.md.
-const GUESTBOOK_ENDPOINT = '';
+const GUESTBOOK_ENDPOINT = 'https://marasabyss.com';
 // 0: none (raw RGB), 1: SameBoy "emulate hardware", 2: Gambatte/Game Boy
 // Online. Upstream defaults to 2, which imitates a real GBC's washed-out
 // screen; 0 keeps the colors as the game authored them.
@@ -929,6 +929,7 @@ const dropHintEl = $('#drop-hint');
 let romKey = 'none';       // identifies save data for the loaded ROM
 let currentRom = null;     // {buffer, key, label, modified}
 let currentBuild = null;   // what the guestbook stamps onto a report
+const romManifest = new Map();  // file -> manifest entry, for its build date
 
 function storageKey(kind) {
   return STORAGE_PREFIX + ':' + kind + ':' + romKey;
@@ -1090,10 +1091,16 @@ async function loadRomFromUrl(path) {
     setStatus(problem, true);
     return;
   }
-  // Last-Modified is the closest thing a static host has to a build date.
-  const modified = Date.parse(response.headers.get('Last-Modified') || '');
-  await startRom(buffer, path, path.split('/').pop(),
-                 Number.isNaN(modified) ? null : modified);
+  // Last-Modified is the closest thing a static host has to a build date, but
+  // Cloudflare's asset server doesn't send one — fall back to the date
+  // tools/gen-roms.mjs recorded for this file at build time.
+  const served = Date.parse(response.headers.get('Last-Modified') || '');
+  const entry = romManifest.get(path);
+  const recorded = Date.parse((entry && entry.built) || '');
+  const modified = !Number.isNaN(served) ? served :
+      !Number.isNaN(recorded)            ? recorded :
+                                           null;
+  await startRom(buffer, path, path.split('/').pop(), modified);
 }
 
 async function loadRomFromFile(file) {
@@ -1308,8 +1315,13 @@ function wireControls() {
 const GUESTBOOK_KEY = STORAGE_PREFIX + ':guestbook';
 const GUESTBOOK_MAX = 50;
 
-let sharedEntries = [];    // the board, as last fetched from the Worker
+const GUESTBOOK_PAGE = 10;  // Entries per request; see guestbook/README.md.
+
+let sharedEntries = [];    // the board so far, oldest request first
+let sharedCursor = null;   // where the next page picks up, null when exhausted
+let sharedDone = true;     // until a response says there is more
 let sharedError = '';
+let guestbookFilter = {kind: '', rom: ''};
 
 const gbBuildEl = $('#gb-build');
 const gbFormEl = $('#gb-form');
@@ -1319,6 +1331,10 @@ const gbTextEl = $('#gb-text');
 const gbShotEl = $('#gb-shot');
 const gbListEl = $('#gb-list');
 const gbStatusEl = $('#gb-status');
+const gbMoreEl = $('#gb-more');
+const gbFiltersEl = $('#gb-filters');
+const gbFilterKindEl = $('#gb-filter-kind');
+const gbFilterRomEl = $('#gb-filter-rom');
 const gbNoteEl = $('#gb-note');
 const gbTrapEl = $('#gb-website');
 
@@ -1364,16 +1380,28 @@ function writeGuestbook(entries) {
   }
 }
 
-async function fetchSharedEntries() {
+// Only ever pulls one page. Reading the whole board on every load is what
+// makes a busy guestbook expensive — one KV read per entry, per visitor.
+async function fetchSharedEntries(append) {
   if (!guestbookIsShared()) return;
+  const params = new URLSearchParams({limit: String(GUESTBOOK_PAGE)});
+  if (guestbookFilter.kind) params.set('kind', guestbookFilter.kind);
+  if (guestbookFilter.rom) params.set('rom', guestbookFilter.rom);
+  if (append && sharedCursor) params.set('cursor', sharedCursor);
   try {
-    const response =
-        await fetch(GUESTBOOK_ENDPOINT + '/entries', {cache: 'no-store'});
+    const response = await fetch(
+        GUESTBOOK_ENDPOINT + '/entries?' + params.toString(), {cache: 'no-store'});
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const body = await response.json();
-    sharedEntries = Array.isArray(body.entries) ? body.entries : [];
+    const page = Array.isArray(body.entries) ? body.entries : [];
+    sharedEntries = append ? sharedEntries.concat(page) : page;
+    sharedCursor = body.cursor || null;
+    sharedDone = !!body.done || !body.cursor;
     sharedError = '';
   } catch (e) {
+    if (!append) sharedEntries = [];
+    sharedCursor = null;
+    sharedDone = true;
     sharedError = 'Could not reach the shared guestbook (' + e.message +
         '). Showing what this browser has.';
   }
@@ -1434,14 +1462,20 @@ async function flushPending() {
 // What the page shows. On a shared board that's the server's entries, with each
 // tester's own screenshots reattached locally by id, plus anything of theirs
 // that hasn't been accepted yet.
+function matchesFilter(entry) {
+  if (guestbookFilter.kind && entry.kind !== guestbookFilter.kind) return false;
+  if (guestbookFilter.rom && entry.rom !== guestbookFilter.rom) return false;
+  return true;
+}
+
 function guestbookBoard() {
   const local = readGuestbook();
-  if (!guestbookIsShared()) return local;
+  if (!guestbookIsShared()) return local.filter(matchesFilter);
   const shots = new Map(
       local.filter(entry => entry.shot).map(entry => [entry.id, entry.shot]));
   const shared = sharedEntries.map(
       entry => Object.assign({}, entry, {shot: shots.get(entry.id) || null}));
-  const pending = local.filter(entry => !entry.sent)
+  const pending = local.filter(entry => !entry.sent && matchesFilter(entry))
       .map(entry => Object.assign({}, entry, {pending: true}));
   return pending.concat(shared);
 }
@@ -1466,6 +1500,7 @@ function buildSummary(build) {
 
 function renderBuildStamp() {
   gbBuildEl.textContent = buildSummary(currentBuild);
+  gbFilterRomEl.disabled = !currentBuild;
 }
 
 // The canvas keeps its drawing buffer (preserveDrawingBuffer on the WebGL
@@ -1481,6 +1516,9 @@ function captureScreenshot() {
 
 function renderGuestbook() {
   const entries = guestbookBoard();
+  gbMoreEl.hidden = !guestbookIsShared() || sharedDone;
+  gbFiltersEl.hidden = !guestbookIsShared() && readGuestbook().length === 0;
+  gbFilterRomEl.disabled = !currentBuild;
   gbListEl.textContent = '';
   for (const entry of entries) {
     const item = document.createElement('li');
@@ -1550,7 +1588,17 @@ async function addGuestbookEntry() {
   try {
     await postEntry(entry);
     markSent(entry.id);
+    // Re-read the first page so the post appears with its server timestamp,
+    // keeping whatever further pages were already loaded.
+    const loaded = sharedEntries.slice(GUESTBOOK_PAGE);
+    const cursor = sharedCursor;
+    const done = sharedDone;
     await fetchSharedEntries();
+    if (loaded.length) {
+      sharedEntries = sharedEntries.concat(loaded);
+      sharedCursor = cursor;
+      sharedDone = done;
+    }
     renderGuestbook();
     setGuestbookStatus('Posted at ' + localTime(now) + '.');
   } catch (e) {
@@ -1661,6 +1709,34 @@ function wireGuestbook() {
     setGuestbookStatus('This browser\'s copy was cleared.');
   });
 
+  gbMoreEl.addEventListener('click', async event => {
+    event.currentTarget.blur();
+    gbMoreEl.disabled = true;
+    setGuestbookStatus('Loading more…');
+    await fetchSharedEntries(true);
+    gbMoreEl.disabled = false;
+    renderGuestbook();
+    setGuestbookStatus(sharedError, !!sharedError);
+  });
+
+  const onFilterChange = async () => {
+    guestbookFilter = {
+      kind: gbFilterKindEl.value,
+      rom: gbFilterRomEl.checked && currentBuild ? currentBuild.file : '',
+    };
+    sharedCursor = null;
+    sharedDone = false;
+    if (guestbookIsShared()) {
+      setGuestbookStatus('Loading…');
+      await fetchSharedEntries();
+      setGuestbookStatus(sharedError, !!sharedError);
+    }
+    renderGuestbook();
+  };
+  gbFilterKindEl.addEventListener('change', onFilterChange);
+  gbFilterRomEl.addEventListener('change', onFilterChange);
+  gbMoreEl.textContent = 'Load ' + GUESTBOOK_PAGE + ' more';
+
   if (guestbookIsShared()) {
     gbNoteEl.textContent =
         'Posts go to a shared board everyone can read, and can\'t be edited or ' +
@@ -1691,6 +1767,7 @@ async function refreshGuestbook() {
   const [manifest, discovered] =
       await Promise.all([loadManifest(), discoverRoms()]);
   const roms = mergeRomLists(manifest, discovered);
+  for (const entry of roms) romManifest.set(entry.file, entry);
   for (const entry of roms) {
     const option = document.createElement('option');
     option.value = entry.file;

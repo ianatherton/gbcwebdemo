@@ -81,6 +81,10 @@ they type and hit **Log it**. The site stays as static as it was; only the
 guestbook's text leaves it. Screenshots are never uploaded: they stay in the
 tester's browser and ride along in **Download**.
 
+The board loads ten at a time, with **Load more** and server-side filters by
+kind and by ROM — reading every entry on every visit is what makes a KV-backed
+guestbook expensive, and it would have grown with the board.
+
 Posts are immutable — nothing a visitor can send edits or deletes someone else's
 entry, and **Clear all** only ever wipes that browser's own copy. Removing a
 post needs the `ADMIN_TOKEN` secret, which lives in Cloudflare. Writes are rate

@@ -283,6 +283,11 @@ footer p { margin: 0; }
 
 .gb-status.error { color: var(--error); }
 
+.gb-filters { margin-top: 12px; }
+.gb-filters select { font-size: 13px; padding: 5px 8px; }
+
+#gb-more { align-self: flex-start; }
+
 .gb-list {
   list-style: none;
   margin: 14px 0;
