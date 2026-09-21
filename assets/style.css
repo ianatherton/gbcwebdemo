@@ -307,6 +307,20 @@ footer p { margin: 0; }
 
 .gb-shot-note { color: var(--muted); font-size: 13px; }
 
+#gb-auth { margin-top: 10px; }
+
+#gb-token {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
 .gb-quota {
   margin: -6px 0 12px;
   color: var(--muted);

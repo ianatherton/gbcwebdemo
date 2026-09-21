@@ -51,12 +51,16 @@ wrangler on demand; it needs Node 20 or newer.
 
 ## API
 
-| | |
-| --- | --- |
-| `GET /entries` | newest 10; `{"entries": [...], "cursor": ..., "done": false}` |
-| `POST /entries` | JSON body; returns `{"ok": true, "entry": {...}}` |
-| `GET /shot?k=<shotKey>` | that entry's screenshot, as `image/png` |
-| `DELETE /entries?id=<id>` | needs `Authorization: Bearer <ADMIN_TOKEN>` |
+Posting is public — a tester needs no account and no password. **Reading is
+not.** The board and its screenshots are bug reports, so every read wants
+`Authorization: Bearer <ADMIN_TOKEN>` and returns `401` without it.
+
+| | Auth | |
+| --- | --- | --- |
+| `POST /entries` | public | JSON body; returns `{"ok": true, "entry": {...}}` |
+| `GET /entries` | token | newest 10; `{"entries": [...], "cursor", "done"}` |
+| `GET /shot?k=<shotKey>` | token | that entry's screenshot, as `image/png` |
+| `DELETE /entries?id=<id>` | token | removes it, and its screenshot |
 
 `GET` takes `limit` (1–50, default 10), `cursor` (from the previous response,
 to continue), `kind` and `rom` (to filter), and `t` (any value, to bypass the
@@ -107,13 +111,13 @@ it, and the page shows `n of 240 reports used today` so nobody has to guess.
 Raise it past 250 and posts start failing late in a busy day — gracefully, but
 failing.
 
-**List requests set the traffic ceiling**, and they are easy to miss: one per
-board load would cap the whole site at 1,000 visits a day, whatever the read
-allowance says. So the board is held in the edge cache for 30 seconds — a burst
-of visitors costs one list between them — and trimming runs every 25th post
-rather than every post. A tester's own new post is spliced in from the `POST`
-response rather than re-reading the board, which would have cost a list each
-time.
+**List requests used to set the traffic ceiling**, and they were the one number
+no cap in the code could bound: one per board load, against 1,000 a day. Now
+that reading needs the token, only the maintainer loads the board, so this
+scales with how often *you* look rather than with how many people visit. On top
+of that the board is held in the edge cache for 30 seconds, trimming runs every
+25th post rather than every post, and a new post is spliced in from the `POST`
+response rather than re-reading the board.
 
 Per-IP limits stop one person spending the lot: 10 posts an hour and 20 a day.
 
@@ -152,6 +156,45 @@ and it's what the 90s ones did too. The limits that do exist:
   else's post. Removing one needs the `ADMIN_TOKEN` secret, which lives in
   Cloudflare and never touches the page.
 - **200 entries**, oldest trimmed past that.
+
+## Who can see what
+
+A tester posts and sees **their own** reports, listed from their browser's
+`localStorage` — so they can still check what they filed, and **Copy all** and
+**Download** work as before. They cannot read the board, anyone else's reports,
+or anyone else's screenshots: those routes return `401`.
+
+On the page, **Maintainer view** takes the `ADMIN_TOKEN` and switches to the
+whole board, with the filters and **Load more**. You type it once: the browser
+remembers it in `localStorage` until you hit **Leave maintainer view**.
+
+For one-click access, bookmark the site with the token in the URL fragment:
+
+```
+https://yourdomain.com/#maintainer=<ADMIN_TOKEN>
+```
+
+The page picks it up, stores it, and strips the fragment from the address bar
+on arrival. A fragment is never sent to the server, so the token stays out of
+request logs and out of anything downstream — it lives in your bookmark and
+your browser, nowhere else.
+
+There is deliberately no password in `assets/player.js`. Every visitor
+downloads that file, so a secret written there is a published secret, whatever
+it is wrapped in. The token has to come from the person, not the page.
+
+The token is compared in constant time, so response timing can't be used to
+guess it a character at a time. Make it a real secret —
+`openssl rand -hex 32` — since it is the only thing between a URL and the
+reports. With `ADMIN_TOKEN` unset, every read is refused and posting still
+works, which is the safe way round.
+
+Screenshots are fetched with the token and handed to the page as blob URLs,
+because an `<img>` tag cannot send an `Authorization` header.
+
+Keeping reads private has a second benefit: **list requests**, the one quota
+that scales with traffic rather than with a cap, now scale with *your* visits
+instead of everyone's. See the next section.
 
 ## Screenshots
 

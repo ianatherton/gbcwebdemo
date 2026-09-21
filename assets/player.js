@@ -1330,6 +1330,10 @@ const gbWhoEl = $('#gb-who');
 const gbKindEl = $('#gb-kind');
 const gbTextEl = $('#gb-text');
 const gbQuotaEl = $('#gb-quota');
+const gbAuthEl = $('#gb-auth');
+const gbTokenEl = $('#gb-token');
+const gbSignInEl = $('#gb-signin');
+const gbSignOutEl = $('#gb-signout');
 const gbListEl = $('#gb-list');
 const gbStatusEl = $('#gb-status');
 const gbMoreEl = $('#gb-more');
@@ -1341,6 +1345,57 @@ const gbTrapEl = $('#gb-website');
 
 function guestbookIsShared() {
   return !!GUESTBOOK_ENDPOINT;
+}
+
+// Posting is public; reading the board is not.
+//
+// The token can't live in this file — every visitor downloads it, so anything
+// written here is published. It lives on the maintainer's own machine instead:
+// remembered in localStorage once entered, or carried in a bookmark as
+// #maintainer=<token>. A URL fragment is never sent to the server, so it stays
+// out of request logs, and it is stripped from the address bar on arrival.
+const VIEW_TOKEN_KEY = STORAGE_PREFIX + ':viewtoken';
+const VIEW_TOKEN_HASH = 'maintainer';
+let viewToken = '';
+
+function loadViewToken() {
+  try {
+    viewToken = localStorage.getItem(VIEW_TOKEN_KEY) || '';
+  } catch (e) {
+    viewToken = '';
+  }
+
+  // A bookmarked link wins, and is scrubbed from the URL straight away so it
+  // doesn't sit in the address bar or get copied out of it by accident.
+  let fromLink = '';
+  try {
+    fromLink =
+        new URLSearchParams(location.hash.slice(1)).get(VIEW_TOKEN_HASH) || '';
+  } catch (e) {
+    fromLink = '';
+  }
+  if (fromLink) {
+    history.replaceState(null, '', location.pathname + location.search);
+    setViewToken(fromLink);
+  }
+}
+
+function setViewToken(token) {
+  viewToken = token || '';
+  try {
+    if (viewToken) localStorage.setItem(VIEW_TOKEN_KEY, viewToken);
+    else localStorage.removeItem(VIEW_TOKEN_KEY);
+  } catch (e) {
+    // Storage is a convenience; the token still works for this page load.
+  }
+}
+
+function isMaintainer() {
+  return guestbookIsShared() && !!viewToken;
+}
+
+function authHeaders() {
+  return viewToken ? {Authorization: 'Bearer ' + viewToken} : {};
 }
 
 function readGuestbook() {
@@ -1384,14 +1439,19 @@ function writeGuestbook(entries) {
 // Only ever pulls one page. Reading the whole board on every load is what
 // makes a busy guestbook expensive — one KV read per entry, per visitor.
 async function fetchSharedEntries(append) {
-  if (!guestbookIsShared()) return;
+  if (!isMaintainer()) return;
   const params = new URLSearchParams({limit: String(GUESTBOOK_PAGE)});
   if (guestbookFilter.kind) params.set('kind', guestbookFilter.kind);
   if (guestbookFilter.rom) params.set('rom', guestbookFilter.rom);
   if (append && sharedCursor) params.set('cursor', sharedCursor);
   try {
     const response = await fetch(
-        GUESTBOOK_ENDPOINT + '/entries?' + params.toString(), {cache: 'no-store'});
+        GUESTBOOK_ENDPOINT + '/entries?' + params.toString(),
+        {cache: 'no-store', headers: authHeaders()});
+    if (response.status === 401) {
+      setViewToken('');
+      throw new Error('that token was not accepted');
+    }
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const body = await response.json();
     if (body.quota) sharedQuota = body.quota;
@@ -1480,19 +1540,40 @@ function matchesFilter(entry) {
   return true;
 }
 
-// The board carries a screenshot either as a local data URL (this browser
-// wrote it) or as a key to fetch it back from the Worker.
-function shotSrc(entry) {
-  if (entry.shot) return entry.shot;
-  if (entry.shotKey && guestbookIsShared()) {
-    return GUESTBOOK_ENDPOINT + '/shot?k=' + encodeURIComponent(entry.shotKey);
+// An <img> can't send an Authorization header, and screenshots are behind the
+// maintainer token, so fetch the bytes and hand the element a blob URL. Kept
+// per key so re-rendering the board doesn't refetch them.
+const shotObjectUrls = new Map();
+
+async function attachShot(img, key) {
+  const known = shotObjectUrls.get(key);
+  if (known) {
+    img.src = known;
+    return;
   }
-  return null;
+  try {
+    const response = await fetch(
+        GUESTBOOK_ENDPOINT + '/shot?k=' + encodeURIComponent(key),
+        {headers: authHeaders()});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const url = URL.createObjectURL(await response.blob());
+    shotObjectUrls.set(key, url);
+    img.src = url;
+  } catch (e) {
+    img.remove();  // A report with no picture is still a report.
+  }
+}
+
+function forgetShots() {
+  for (const url of shotObjectUrls.values()) URL.revokeObjectURL(url);
+  shotObjectUrls.clear();
 }
 
 function guestbookBoard() {
   const local = readGuestbook();
-  if (!guestbookIsShared()) return local.filter(matchesFilter);
+  // Not the maintainer: the shared board is not readable, so show this
+  // browser's own reports. A tester still sees everything they filed.
+  if (!isMaintainer()) return local.filter(matchesFilter);
   const shots = new Map(
       local.filter(entry => entry.shot).map(entry => [entry.id, entry.shot]));
   const shared = sharedEntries.map(
@@ -1553,8 +1634,10 @@ function captureScreenshot() {
 function renderGuestbook() {
   const entries = guestbookBoard();
   renderQuota();
-  gbMoreEl.hidden = !guestbookIsShared() || sharedDone;
-  gbFiltersEl.hidden = !guestbookIsShared() && readGuestbook().length === 0;
+  gbMoreEl.hidden = !isMaintainer() || sharedDone;
+  gbFiltersEl.hidden = !isMaintainer() && readGuestbook().length === 0;
+  gbSignInEl.hidden = !guestbookIsShared() || isMaintainer();
+  gbSignOutEl.hidden = !isMaintainer();
   gbFilterRomEl.disabled = !currentBuild;
   gbListEl.textContent = '';
   for (const entry of entries) {
@@ -1576,10 +1659,8 @@ function renderGuestbook() {
     body.textContent = entry.text;
     item.appendChild(body);
 
-    const src = shotSrc(entry);
-    if (src) {
+    if (entry.shot || (entry.shotKey && isMaintainer())) {
       const img = document.createElement('img');
-      img.src = src;
       img.loading = 'lazy';
       img.width = 160;
       img.height = 144;
@@ -1587,6 +1668,8 @@ function renderGuestbook() {
       // A screenshot can be missing where its report isn't — a trim in flight,
       // or a write that didn't fit the day's budget. Show the report anyway.
       img.addEventListener('error', () => img.remove());
+      if (entry.shot) img.src = entry.shot;
+      else attachShot(img, entry.shotKey);
       item.appendChild(img);
     }
 
@@ -1634,7 +1717,7 @@ async function addGuestbookEntry() {
     markSent(entry.id);
     // The response carries the stored entry, so show that rather than spending
     // a list request re-reading the board. Board loads are the scarce call.
-    if (result && result.entry && matchesFilter(result.entry)) {
+    if (isMaintainer() && result && result.entry && matchesFilter(result.entry)) {
       sharedEntries = [result.entry].concat(sharedEntries);
     }
     renderGuestbook();
@@ -1677,12 +1760,8 @@ function guestbookMarkdown() {
                               ', build date unknown'));
     lines.push('- Site: v' + (entry.site || '?'));
     lines.push('- Browser: ' + entry.ua);
-    const src = shotSrc(entry);
-    if (src) {
-      lines.push('- Screenshot: ' +
-                 (entry.shotKey && guestbookIsShared() ? src :
-                                                         'in the JSON download'));
-    }
+    if (entry.shot) lines.push('- Screenshot: in the JSON download');
+    else if (entry.shotKey) lines.push('- Screenshot: on the board');
     lines.push('');
     lines.push(entry.text);
     lines.push('');
@@ -1703,6 +1782,7 @@ function downloadGuestbook() {
 }
 
 function wireGuestbook() {
+  loadViewToken();
   try {
     gbWhoEl.value = localStorage.getItem(STORAGE_PREFIX + ':reporter') || '';
   } catch (e) {
@@ -1785,12 +1865,54 @@ function wireGuestbook() {
   gbFilterRomEl.addEventListener('change', onFilterChange);
   gbMoreEl.textContent = 'Load ' + GUESTBOOK_PAGE + ' more';
 
+  gbSignInEl.addEventListener('click', () => {
+    gbAuthEl.hidden = false;
+    gbTokenEl.focus();
+  });
+
+  $('#gb-auth-cancel').addEventListener('click', () => {
+    gbAuthEl.hidden = true;
+    gbTokenEl.value = '';
+  });
+
+  gbAuthEl.addEventListener('submit', async event => {
+    event.preventDefault();
+    const token = gbTokenEl.value.trim();
+    if (!token) return;
+    setViewToken(token);
+    gbTokenEl.value = '';
+    setGuestbookStatus('Checking…');
+    sharedCursor = null;
+    sharedDone = true;
+    await fetchSharedEntries();
+    if (sharedError) {
+      setViewToken('');
+      setGuestbookStatus(sharedError, true);
+    } else {
+      gbAuthEl.hidden = true;
+      setGuestbookStatus(
+          'Maintainer view — showing every report. This browser will remember ' +
+          'the token until you leave maintainer view.');
+    }
+    renderGuestbook();
+  });
+
+  gbSignOutEl.addEventListener('click', () => {
+    setViewToken('');
+    forgetShots();
+    sharedEntries = [];
+    sharedCursor = null;
+    sharedDone = true;
+    renderGuestbook();
+    setGuestbookStatus('Left maintainer view.');
+  });
+
   if (guestbookIsShared()) {
     gbNoteEl.textContent =
-        'Posts go to a shared board everyone can read, and can\'t be edited or ' +
-        'deleted once sent. Each is stamped with the date, the ROM\'s build id ' +
-        'and build date, and the browser. Screenshots go up too — a Game Boy ' +
-        'frame is only a few KB — up to 20 a day from one connection.';
+        'Reports go to the maintainer. Other testers can\'t read them, and ' +
+        'nothing here is public. Each is stamped with the date, the ROM\'s ' +
+        'build id and build date, and the browser, and carries a screenshot of ' +
+        'the screen. What you file stays listed here in your own browser.';
   }
 
   renderBuildStamp();
@@ -1801,8 +1923,12 @@ function wireGuestbook() {
 // On load: push anything that didn't make it up last time, then pull the board.
 async function refreshGuestbook() {
   if (!guestbookIsShared()) return;
-  setGuestbookStatus('Loading the guestbook…');
   await flushPending();
+  if (!isMaintainer()) {
+    renderGuestbook();
+    return;
+  }
+  setGuestbookStatus('Loading the board…');
   await fetchSharedEntries();
   renderGuestbook();
   setGuestbookStatus(sharedError, !!sharedError);

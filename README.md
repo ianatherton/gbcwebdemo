@@ -76,9 +76,17 @@ KV, one key per entry. Deploy it (see `guestbook/README.md`), put the URL in
 const GUESTBOOK_ENDPOINT = 'https://gbc-guestbook.<you>.workers.dev';
 ```
 
-and the page shows a board every tester can read, with no account and no login —
-they type and hit **Log it**. The site stays as static as it was; only the
-guestbook leaves it.
+and testers can file reports with no account and no login — they type and hit
+**Log it**. The site stays as static as it was; only the guestbook leaves it.
+
+Posting is public; **reading is not**. A tester sees their own reports, listed
+from their own browser. The board itself, and every screenshot on it, needs the
+`ADMIN_TOKEN` — there's a **Maintainer view** button that takes it once and the
+browser remembers it, or bookmark `https://yourdomain.com/#maintainer=<token>`
+for one-click access (the fragment is stripped from the URL on arrival and is
+never sent to the server). That keeps bug reports between the tester and
+you, and it means the one quota that scales with traffic scales with your visits
+instead of everyone's.
 
 Screenshots go up too. A 160x144 frame with a Game Boy's palette is a 1-4 KB
 PNG, so they are stored beside the entry and served `immutable` from the edge

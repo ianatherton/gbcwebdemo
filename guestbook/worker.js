@@ -6,10 +6,14 @@
  * KV, one key per entry rather than one big file, so two testers posting at the
  * same moment can't clobber each other's write.
  *
- *   GET    /entries          newest entries first, a page at a time
- *   POST   /entries          add one (JSON body, optional PNG screenshot)
- *   GET    /shot?k=...       one screenshot, immutable and edge-cached
- *   DELETE /entries?id=...   moderation; needs the ADMIN_TOKEN secret
+ * Posting is public — a tester needs no account. Reading is not: the board and
+ * its screenshots are bug reports, and only the maintainer should see them. All
+ * three read/moderate routes want `Authorization: Bearer <ADMIN_TOKEN>`.
+ *
+ *   POST   /entries          add one (public; JSON body, PNG screenshot)
+ *   GET    /entries          newest first, a page at a time   (token)
+ *   GET    /shot?k=...       one screenshot, immutable        (token)
+ *   DELETE /entries?id=...   remove one                       (token)
  *
  * Deploying and configuring it: see README.md next to this file.
  */
@@ -48,17 +52,41 @@ export default {
     }
 
     const url = new URL(request.url);
+    // Posting is the only public route.
+    if (url.pathname === '/entries' && request.method === 'POST') {
+      return addEntry(request, env, cors);
+    }
+
+    if (!isMaintainer(request, env)) {
+      return json({error: 'this guestbook is private', auth: true}, 401, cors);
+    }
+
     if (url.pathname === '/shot' && request.method === 'GET') {
       return getShot(url, env, cors);
     }
     if (url.pathname !== '/entries') return json({error: 'not found'}, 404, cors);
 
     if (request.method === 'GET') return listEntries(url, env, cors);
-    if (request.method === 'POST') return addEntry(request, env, cors);
     if (request.method === 'DELETE') return deleteEntry(url, request, env, cors);
     return json({error: 'method not allowed'}, 405, cors);
   },
 };
+
+function isMaintainer(request, env) {
+  const token =
+      (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  return !!env.ADMIN_TOKEN && constantTimeEqual(token, env.ADMIN_TOKEN);
+}
+
+// Compares in time proportional to the input, not to how much of it matches,
+// so the response time can't be used to guess the token a character at a time.
+function constantTimeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
 // A browser only hands the response to the page when the origin matches, so
 // this keeps another site from posting through a visitor's browser. It is not
@@ -391,11 +419,6 @@ async function checkLimits(env, ip) {
 }
 
 async function deleteEntry(url, request, env, cors) {
-  const token =
-      (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-    return json({error: 'not authorized'}, 401, cors);
-  }
   const id = url.searchParams.get('id');
   if (!id) return json({error: 'need ?id=<entry id>'}, 400, cors);
 
