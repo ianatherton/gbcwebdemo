@@ -1,1 +1,4 @@
 .DS_Store
+
+# wrangler's local state and build cache — never deploy this.
+.wrangler/

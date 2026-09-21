@@ -13,6 +13,11 @@
 
 * { box-sizing: border-box; }
 
+/* The UA rule for [hidden] is display:none, but any author `display` beats it —
+   and several things here are hidden while carrying .gb-row's display:flex.
+   Make the attribute win, so el.hidden = true always means hidden. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   min-height: 100%;
@@ -65,6 +70,44 @@ main {
   align-items: center;
   gap: 14px;
 }
+
+/* --- maintainer bar -------------------------------------------------------
+   Only visible when signed in, and fixed so it stays true however far down the
+   page you are: the whole point is knowing which mode you're looking at. */
+
+.maintainer-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  padding: 10px 16px;
+  background: #0d1a13;
+  border-bottom: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.maintainer-bar strong { letter-spacing: 0.06em; text-transform: uppercase; }
+
+.maintainer-bar button {
+  padding: 3px 10px;
+  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+body.maintainer { padding-top: 60px; }
+
+/* The top corner skulls would sit under the bar. */
+body.maintainer .skull-tl,
+body.maintainer .skull-tr { top: 68px; }
 
 /* --- skulls ---------------------------------------------------------------
    goodskull.gif is an 80x80 animated GIF with no alpha channel — its palette

@@ -1333,7 +1333,7 @@ const gbQuotaEl = $('#gb-quota');
 const gbAuthEl = $('#gb-auth');
 const gbTokenEl = $('#gb-token');
 const gbSignInEl = $('#gb-signin');
-const gbSignOutEl = $('#gb-signout');
+const maintainerBarEl = $('#maintainer-bar');
 const gbListEl = $('#gb-list');
 const gbStatusEl = $('#gb-status');
 const gbMoreEl = $('#gb-more');
@@ -1601,6 +1601,14 @@ function buildSummary(build) {
   return parts.join(' · ');
 }
 
+// The bar is the one always-visible answer to "which mode am I in?", so it is
+// driven from the same state as the board rather than toggled by hand.
+function renderMaintainerBar() {
+  const on = isMaintainer();
+  maintainerBarEl.hidden = !on;
+  document.body.classList.toggle('maintainer', on);
+}
+
 function renderQuota() {
   if (!guestbookIsShared() || !sharedQuota) {
     gbQuotaEl.hidden = true;
@@ -1637,7 +1645,7 @@ function renderGuestbook() {
   gbMoreEl.hidden = !isMaintainer() || sharedDone;
   gbFiltersEl.hidden = !isMaintainer() && readGuestbook().length === 0;
   gbSignInEl.hidden = !guestbookIsShared() || isMaintainer();
-  gbSignOutEl.hidden = !isMaintainer();
+  renderMaintainerBar();
   gbFilterRomEl.disabled = !currentBuild;
   gbListEl.textContent = '';
   for (const entry of entries) {
@@ -1897,15 +1905,7 @@ function wireGuestbook() {
     renderGuestbook();
   });
 
-  gbSignOutEl.addEventListener('click', () => {
-    setViewToken('');
-    forgetShots();
-    sharedEntries = [];
-    sharedCursor = null;
-    sharedDone = true;
-    renderGuestbook();
-    setGuestbookStatus('Left maintainer view.');
-  });
+  $('#maintainer-leave').addEventListener('click', leaveMaintainerView);
 
   if (guestbookIsShared()) {
     gbNoteEl.textContent =
@@ -1921,6 +1921,16 @@ function wireGuestbook() {
 }
 
 // On load: push anything that didn't make it up last time, then pull the board.
+function leaveMaintainerView() {
+  setViewToken('');
+  forgetShots();
+  sharedEntries = [];
+  sharedCursor = null;
+  sharedDone = true;
+  renderGuestbook();
+  setGuestbookStatus('Left maintainer view — this browser has forgotten the token.');
+}
+
 async function refreshGuestbook() {
   if (!guestbookIsShared()) return;
   await flushPending();
