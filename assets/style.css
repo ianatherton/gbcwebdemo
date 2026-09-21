@@ -2,9 +2,9 @@
 
 :root {
   color-scheme: dark;
-  --bg: #10131a;
-  --panel: #1a1f2b;
-  --line: #2b3242;
+  --bg: #000;
+  --panel: #0c0f16;
+  --line: #262d3b;
   --text: #e7ecf5;
   --muted: #96a0b5;
   --accent: #7dd3a0;
@@ -64,6 +64,58 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 14px;
+}
+
+/* --- skulls ---------------------------------------------------------------
+   goodskull.gif is an 80x80 animated GIF with no alpha channel — its palette
+   index 0 is pure #000000. That's why --bg is exactly black: anything else and
+   each skull shows up as an 80x80 black tile. Keep them on --bg only. */
+
+.skull {
+  position: fixed;
+  width: 80px;
+  height: 80px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.skull-tl { top: 8px; left: 8px; }
+.skull-tr { top: 8px; right: 8px; transform: scaleX(-1); }
+.skull-bl { bottom: 8px; left: 8px; }
+.skull-br { bottom: 8px; right: 8px; transform: scaleX(-1); }
+
+/* The page sits above them, and its own panels are opaque, so the skulls read
+   as a frame around the content rather than behind text. */
+body > header,
+body > main,
+body > footer { position: relative; z-index: 1; }
+
+/* A row of them under the footer, as a divider. */
+.skull-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  opacity: 0.7;
+}
+
+.skull-row img {
+  width: 48px;
+  height: 48px;
+  display: block;
+}
+
+.skull-row img:nth-child(even) { transform: scaleX(-1); }
+
+/* Corner skulls need room the narrow layout doesn't have, and the on-screen
+   gamepad owns the bottom of the screen on touch devices. */
+@media (max-width: 900px) {
+  .skull-tl, .skull-tr, .skull-bl, .skull-br { display: none; }
+  .skull-row img:nth-child(n+4) { display: none; }
 }
 
 /* --- screen --------------------------------------------------------------- */
@@ -252,6 +304,17 @@ footer p { margin: 0; }
 .guestbook ::placeholder { color: var(--muted); opacity: 1; }
 
 #gb-form .gb-row:last-child { justify-content: space-between; }
+
+.gb-shot-note { color: var(--muted); font-size: 13px; }
+
+.gb-quota {
+  margin: -6px 0 12px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.gb-quota.low { color: var(--error); }
 
 .gb-check {
   display: inline-flex;

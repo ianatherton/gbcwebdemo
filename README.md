@@ -78,8 +78,13 @@ const GUESTBOOK_ENDPOINT = 'https://gbc-guestbook.<you>.workers.dev';
 
 and the page shows a board every tester can read, with no account and no login —
 they type and hit **Log it**. The site stays as static as it was; only the
-guestbook's text leaves it. Screenshots are never uploaded: they stay in the
-tester's browser and ride along in **Download**.
+guestbook leaves it.
+
+Screenshots go up too. A 160x144 frame with a Game Boy's palette is a 1-4 KB
+PNG, so they are stored beside the entry and served `immutable` from the edge
+cache — only the first viewer of each costs a read. Uploads are capped at 20 per
+IP per day and must actually look like a Game Boy screen: a real PNG, under
+64 KB, no larger than 320x288.
 
 The board loads ten at a time, with **Load more** and server-side filters by
 kind and by ROM — reading every entry on every visit is what makes a KV-backed

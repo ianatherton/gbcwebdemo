@@ -1321,6 +1321,7 @@ let sharedEntries = [];    // the board so far, oldest request first
 let sharedCursor = null;   // where the next page picks up, null when exhausted
 let sharedDone = true;     // until a response says there is more
 let sharedError = '';
+let sharedQuota = null;    // {used, cap, left} as the Worker last reported it
 let guestbookFilter = {kind: '', rom: ''};
 
 const gbBuildEl = $('#gb-build');
@@ -1328,7 +1329,7 @@ const gbFormEl = $('#gb-form');
 const gbWhoEl = $('#gb-who');
 const gbKindEl = $('#gb-kind');
 const gbTextEl = $('#gb-text');
-const gbShotEl = $('#gb-shot');
+const gbQuotaEl = $('#gb-quota');
 const gbListEl = $('#gb-list');
 const gbStatusEl = $('#gb-status');
 const gbMoreEl = $('#gb-more');
@@ -1393,6 +1394,7 @@ async function fetchSharedEntries(append) {
         GUESTBOOK_ENDPOINT + '/entries?' + params.toString(), {cache: 'no-store'});
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const body = await response.json();
+    if (body.quota) sharedQuota = body.quota;
     const page = Array.isArray(body.entries) ? body.entries : [];
     sharedEntries = append ? sharedEntries.concat(page) : page;
     sharedCursor = body.cursor || null;
@@ -1407,8 +1409,8 @@ async function fetchSharedEntries(append) {
   }
 }
 
-// Screenshots are deliberately left behind: the shared board is text, which is
-// what keeps the Worker small and inside its free tier.
+// The screenshot rides along as base64 PNG — a Game Boy frame is 1-4 KB, so
+// it costs one extra KV write and nothing worth worrying about in storage.
 async function postEntry(entry) {
   const response = await fetch(GUESTBOOK_ENDPOINT + '/entries', {
     method: 'POST',
@@ -1425,17 +1427,27 @@ async function postEntry(entry) {
       rev: entry.rev,
       site: entry.site,
       ua: entry.ua,
+      shot: entry.shot || undefined,
       website: gbTrapEl ? gbTrapEl.value : '',
     }),
   });
   if (!response.ok) {
     let message = 'HTTP ' + response.status;
     try {
-      message = (await response.json()).error || message;
+      const body = await response.json();
+      message = body.error || message;
+      if (body.quota) sharedQuota = body.quota;
     } catch (e) {
       // Keep the status code as the message.
     }
     throw new Error(message);
+  }
+  try {
+    const body = await response.json();
+    if (body.quota) sharedQuota = body.quota;
+    return body;
+  } catch (e) {
+    return {};
   }
 }
 
@@ -1468,6 +1480,16 @@ function matchesFilter(entry) {
   return true;
 }
 
+// The board carries a screenshot either as a local data URL (this browser
+// wrote it) or as a key to fetch it back from the Worker.
+function shotSrc(entry) {
+  if (entry.shot) return entry.shot;
+  if (entry.shotKey && guestbookIsShared()) {
+    return GUESTBOOK_ENDPOINT + '/shot?k=' + encodeURIComponent(entry.shotKey);
+  }
+  return null;
+}
+
 function guestbookBoard() {
   const local = readGuestbook();
   if (!guestbookIsShared()) return local.filter(matchesFilter);
@@ -1498,6 +1520,20 @@ function buildSummary(build) {
   return parts.join(' · ');
 }
 
+function renderQuota() {
+  if (!guestbookIsShared() || !sharedQuota) {
+    gbQuotaEl.hidden = true;
+    return;
+  }
+  gbQuotaEl.hidden = false;
+  gbQuotaEl.textContent = sharedQuota.left > 0 ?
+      sharedQuota.used + ' of ' + sharedQuota.cap +
+          ' reports used today · resets 00:00 UTC' :
+      'Full for today (' + sharedQuota.cap + ' reports) · resets 00:00 UTC — ' +
+          'anything you write now is kept here and goes up after the reset';
+  gbQuotaEl.classList.toggle('low', sharedQuota.left <= 20);
+}
+
 function renderBuildStamp() {
   gbBuildEl.textContent = buildSummary(currentBuild);
   gbFilterRomEl.disabled = !currentBuild;
@@ -1516,6 +1552,7 @@ function captureScreenshot() {
 
 function renderGuestbook() {
   const entries = guestbookBoard();
+  renderQuota();
   gbMoreEl.hidden = !guestbookIsShared() || sharedDone;
   gbFiltersEl.hidden = !guestbookIsShared() && readGuestbook().length === 0;
   gbFilterRomEl.disabled = !currentBuild;
@@ -1539,10 +1576,17 @@ function renderGuestbook() {
     body.textContent = entry.text;
     item.appendChild(body);
 
-    if (entry.shot) {
+    const src = shotSrc(entry);
+    if (src) {
       const img = document.createElement('img');
-      img.src = entry.shot;
+      img.src = src;
+      img.loading = 'lazy';
+      img.width = 160;
+      img.height = 144;
       img.alt = 'Screen at the time of the report';
+      // A screenshot can be missing where its report isn't — a trim in flight,
+      // or a write that didn't fit the day's budget. Show the report anyway.
+      img.addEventListener('error', () => img.remove());
       item.appendChild(img);
     }
 
@@ -1567,7 +1611,7 @@ async function addGuestbookEntry() {
     rev: currentBuild ? currentBuild.rev : null,
     site: BUILD_VERSION,
     ua: navigator.userAgent,
-    shot: gbShotEl.checked ? captureScreenshot() : null,
+    shot: captureScreenshot(),
     sent: false,
   };
   // Always land it locally first, so a report is never lost to a failed post.
@@ -1586,21 +1630,20 @@ async function addGuestbookEntry() {
   }
   setGuestbookStatus('Posting…');
   try {
-    await postEntry(entry);
+    const result = await postEntry(entry);
     markSent(entry.id);
-    // Re-read the first page so the post appears with its server timestamp,
-    // keeping whatever further pages were already loaded.
-    const loaded = sharedEntries.slice(GUESTBOOK_PAGE);
-    const cursor = sharedCursor;
-    const done = sharedDone;
-    await fetchSharedEntries();
-    if (loaded.length) {
-      sharedEntries = sharedEntries.concat(loaded);
-      sharedCursor = cursor;
-      sharedDone = done;
+    // The response carries the stored entry, so show that rather than spending
+    // a list request re-reading the board. Board loads are the scarce call.
+    if (result && result.entry && matchesFilter(result.entry)) {
+      sharedEntries = [result.entry].concat(sharedEntries);
     }
     renderGuestbook();
-    setGuestbookStatus('Posted at ' + localTime(now) + '.');
+    setGuestbookStatus(
+        result && result.shotDropped ?
+            'Posted at ' + localTime(now) +
+                ' — the screenshot didn\'t fit today\'s budget, but it is kept ' +
+                'here and comes along in Download.' :
+            'Posted at ' + localTime(now) + '.');
   } catch (e) {
     renderGuestbook();
     setGuestbookStatus('Kept in this browser — could not post: ' + e.message +
@@ -1634,7 +1677,12 @@ function guestbookMarkdown() {
                               ', build date unknown'));
     lines.push('- Site: v' + (entry.site || '?'));
     lines.push('- Browser: ' + entry.ua);
-    if (entry.shot) lines.push('- Screenshot: in the JSON download');
+    const src = shotSrc(entry);
+    if (src) {
+      lines.push('- Screenshot: ' +
+                 (entry.shotKey && guestbookIsShared() ? src :
+                                                         'in the JSON download'));
+    }
     lines.push('');
     lines.push(entry.text);
     lines.push('');
@@ -1741,8 +1789,8 @@ function wireGuestbook() {
     gbNoteEl.textContent =
         'Posts go to a shared board everyone can read, and can\'t be edited or ' +
         'deleted once sent. Each is stamped with the date, the ROM\'s build id ' +
-        'and build date, and the browser. Screenshots are not uploaded — they ' +
-        'stay in this browser and come along in Download.';
+        'and build date, and the browser. Screenshots go up too — a Game Boy ' +
+        'frame is only a few KB — up to 20 a day from one connection.';
   }
 
   renderBuildStamp();

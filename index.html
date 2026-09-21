@@ -8,10 +8,17 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1f2b'/%3E%3Crect x='3' y='3' width='10' height='8' rx='1' fill='%237dd3a0'/%3E%3Ccircle cx='11.5' cy='13' r='1.2' fill='%23e7ecf5'/%3E%3Crect x='3' y='12.3' width='4' height='1.4' rx='.7' fill='%23e7ecf5'/%3E%3C/svg%3E">
 <!-- Bump ?v= on every deploy so browsers fetch the new files instead of
      serving cached ones. See the Caching section of README.md. -->
-<link rel="stylesheet" href="assets/controller.css?v=6">
-<link rel="stylesheet" href="assets/style.css?v=6">
+<link rel="stylesheet" href="assets/controller.css?v=8">
+<link rel="stylesheet" href="assets/style.css?v=8">
 </head>
 <body>
+
+<!-- Decorative only; hidden from assistive tech. See .skull in style.css for
+     why the page background has to be exactly #000. -->
+<img class="skull skull-tl" src="assets/goodskull.gif?v=8" alt="" aria-hidden="true">
+<img class="skull skull-tr" src="assets/goodskull.gif?v=8" alt="" aria-hidden="true">
+<img class="skull skull-bl" src="assets/goodskull.gif?v=8" alt="" aria-hidden="true">
+<img class="skull skull-br" src="assets/goodskull.gif?v=8" alt="" aria-hidden="true">
 
 <header class="bar">
   <h1>GBC Web Player</h1>
@@ -64,6 +71,7 @@
   <section class="guestbook" id="guestbook">
     <h2>Bug guestbook</h2>
     <p id="gb-build" class="gb-build">No ROM loaded</p>
+    <p id="gb-quota" class="gb-quota" hidden></p>
 
     <form id="gb-form">
       <div class="gb-row">
@@ -85,9 +93,7 @@
       <input type="text" id="gb-website" name="website" tabindex="-1"
              autocomplete="off" aria-hidden="true" class="gb-trap">
       <div class="gb-row">
-        <label class="gb-check">
-          <input type="checkbox" id="gb-shot" checked> Attach screenshot
-        </label>
+        <span class="gb-shot-note">A screenshot of the screen is attached automatically.</span>
         <button type="submit">Log it</button>
       </div>
     </form>
@@ -145,6 +151,15 @@
   <div id="controller_a" class="roundBtn">A</div>
 </div>
 
+<div class="skull-row" aria-hidden="true">
+  <img src="assets/goodskull.gif?v=8" alt="">
+  <img src="assets/goodskull.gif?v=8" alt="">
+  <img src="assets/goodskull.gif?v=8" alt="">
+  <img src="assets/goodskull.gif?v=8" alt="">
+  <img src="assets/goodskull.gif?v=8" alt="">
+  <img src="assets/goodskull.gif?v=8" alt="">
+</div>
+
 <footer class="bar">
   <p>
     Emulation by <a href="https://github.com/binji/binjgb">binjgb</a> (MIT), with the
@@ -153,7 +168,7 @@
   </p>
 </footer>
 
-<script src="vendor/binjgb.js?v=6"></script>
-<script src="assets/player.js?v=6"></script>
+<script src="vendor/binjgb.js?v=8"></script>
+<script src="assets/player.js?v=8"></script>
 </body>
 </html>
