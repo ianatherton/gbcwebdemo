@@ -1750,7 +1750,7 @@ function setGuestbookStatus(message, isError) {
 function guestbookMarkdown() {
   const entries = guestbookBoard();
   const lines = [
-    '# Bug guestbook — GBC Web Player',
+    '# Bug guestbook — Mara\'s Abyss - Alpha Testing',
     '',
     'Exported ' + new Date().toISOString() + ' — ' + entries.length +
         (entries.length === 1 ? ' entry' : ' entries'),

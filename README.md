@@ -1,4 +1,4 @@
-# GBC Web Player
+# Mara's Abyss - Alpha Testing
 
 A static Game Boy / Game Boy Color player for testing your own ROMs in the
 browser. No build step, no dependencies, no server code — just files you can

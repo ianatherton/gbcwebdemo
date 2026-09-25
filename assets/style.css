@@ -55,6 +55,12 @@ h1 {
   text-transform: uppercase;
 }
 
+/* The title is long enough uppercase that it crowds the ROM info beside it on
+   a phone; the header wraps either way, this just keeps it from dominating. */
+@media (max-width: 480px) {
+  h1 { font-size: 15px; letter-spacing: 0.02em; }
+}
+
 .rom-info {
   margin: 0;
   color: var(--muted);
@@ -80,7 +86,7 @@ main {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 3;
+  z-index: 6;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -460,13 +466,19 @@ footer p { margin: 0; }
 body.touch-gamepad { padding-bottom: 240px; }
 
 /* Dock the gamepad opaquely at the bottom; the GB Studio styles float it and
-   let the page show through, which is unreadable on a scrolling page. */
+   let the page show through, which is unreadable on a scrolling page.
+
+   It also needs to out-stack the page. controller.css positions it but sets no
+   z-index, and the page's own sections carry z-index: 1 so they sit above the
+   skulls — which put the guestbook on top of the gamepad. The gamepad is an
+   input surface: nothing in the page body should ever cover it. */
 #controller {
   bottom: 0;
   transform: none;
   opacity: 1;
   background: var(--bg);
   border-top: 1px solid var(--line);
+  z-index: 5;
 }
 
 /* Phone in landscape: float the gamepad at the screen edges (d-pad left,
