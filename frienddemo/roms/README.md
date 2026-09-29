@@ -4,8 +4,12 @@ Drop your built `.gb` / `.gbc` / `.bin` files in this directory. That's it — t
 player lists whatever it finds here, under the file's own name, so a build does
 not have to be named anything in particular.
 
-Discovery works two ways, because static hosting has no "list this directory"
-call:
+On Cloudflare the manifest is built for you: `node tools/gen-roms.mjs` runs as
+the deploy's build command and writes `roms.json` from whatever is in here,
+recording each ROM's date from its first commit. Run it by hand any time.
+
+Failing that, discovery works two ways, because static hosting has no "list
+this directory" call:
 
 - **Locally** (`python3 -m http.server`) the player reads the server's
   directory listing.

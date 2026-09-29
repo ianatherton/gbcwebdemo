@@ -14,7 +14,13 @@
 import {execFileSync} from 'node:child_process';
 import {readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 
-const ROM_DIR = 'roms';
+// Two different notions of "where": the repo path this script reads from, and
+// the page-relative path the player fetches. The site is served from
+// frienddemo/, so /frienddemo/roms/x.gbc on the web is frienddemo/roms/x.gbc
+// on disk — but the manifest records it as "roms/x.gbc", relative to the page.
+const SITE_DIR = 'frienddemo';
+const ROM_SUBDIR = 'roms';
+const ROM_DIR = SITE_DIR + '/' + ROM_SUBDIR;
 const MANIFEST = ROM_DIR + '/roms.json';
 const ROM_EXTENSION = /\.(gbc?|bin)$/i;
 
@@ -32,7 +38,10 @@ try {
 // answer; a fresh checkout's mtime is just the clone time, so it's the fallback.
 function builtAt(file) {
   try {
-    const iso = execFileSync('git', ['log', '-1', '--format=%cI', '--', file], {
+    // --follow so a file that has been moved keeps the date it was really
+    // added, rather than reporting the commit that moved it.
+    const iso = execFileSync(
+        'git', ['log', '--follow', '-1', '--format=%cI', '--', file], {
                   encoding: 'utf8',
                   stdio: ['ignore', 'pipe', 'ignore'],
                 }).trim();
@@ -51,11 +60,12 @@ const entries = readdirSync(ROM_DIR)
     .filter(name => ROM_EXTENSION.test(name))
     .sort((a, b) => a.localeCompare(b))
     .map(name => {
-      const file = ROM_DIR + '/' + name;
+      const file = ROM_SUBDIR + '/' + name;   // as the page asks for it
+      const path = ROM_DIR + '/' + name;      // as the repo stores it
       return {
         name: chosenNames.get(file) || name.replace(ROM_EXTENSION, ''),
         file,
-        built: builtAt(file),
+        built: builtAt(path),
       };
     });
 

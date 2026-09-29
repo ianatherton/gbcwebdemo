@@ -52,6 +52,13 @@ export default {
     }
 
     const url = new URL(request.url);
+    // Fallback only. index.html at the repo root is the landing page, and
+    // static assets are matched before the Worker runs, so this fires just in
+    // case that file ever goes missing — better a redirect than a JSON 404.
+    if (url.pathname === '/' && request.method === 'GET') {
+      return Response.redirect(new URL('/frienddemo/', url).toString(), 302);
+    }
+
     // Posting is the only public route.
     if (url.pathname === '/entries' && request.method === 'POST') {
       return addEntry(request, env, cors);

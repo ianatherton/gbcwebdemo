@@ -9,8 +9,12 @@ had: two people posting at the same instant can't overwrite each other.
 
 `worker.js` is only the guestbook. The Worker it deploys into also serves the
 whole site — `wrangler.toml` in the repo root points `[assets]` at that root, so
-static files are handed out directly and only `/entries` reaches this code. Page
-and guestbook therefore share an origin, and no CORS is involved.
+static files are handed out directly and only `/entries` and `/shot` reach this
+code. Page and guestbook therefore share an origin, and no CORS is involved.
+
+The player lives at `/frienddemo`, because that is where its files sit in the
+repo. The API does not move with it: it stays at the root, which is why
+`GUESTBOOK_ENDPOINT` is the bare origin.
 
 ## Setting it up (dashboard + git, no CLI)
 

@@ -4,6 +4,11 @@
 # file — i.e. /entries — falls through to guestbook/worker.js. That means the
 # page and the guestbook share an origin, so no CORS is involved at all.
 #
+# The asset directory maps one-to-one onto URL paths, so the player living in
+# frienddemo/ is what puts it at /frienddemo. The API stays at the root
+# (/entries, /shot), and the root itself redirects to the demo until there is
+# something else to put there.
+#
 # Cloudflare builds and deploys this on every push once the repo is connected;
 # see guestbook/README.md.
 

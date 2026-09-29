@@ -1166,14 +1166,26 @@ async function listRomsFromAutoindex() {
   }
 }
 
-// https://<user>.github.io/<repo>/ is served from github.com/<user>/<repo>;
-// a user site (no repo path segment) comes from a repo named after the host.
+// https://<user>.github.io/<repo>/... is served from github.com/<user>/<repo>.
+// The page may sit in a subdirectory of the repo (it does — /frienddemo/), so
+// the ROM directory's path inside the repo is everything after the repo name.
+//
+// Best effort, and only a fallback: on a custom domain this returns null, and
+// tools/gen-roms.mjs writes a real manifest at build time either way. It
+// assumes a project site; a user site (<user>.github.io with no repo segment)
+// would need the first segment kept rather than dropped.
 function githubContentsUrl() {
   const host = location.hostname.match(/^([\w-]+)\.github\.io$/i);
   if (!host) return null;
-  const repo = location.pathname.split('/').filter(Boolean)[0] || host[0];
+  const segments = location.pathname.split('/').filter(Boolean);
+  // A trailing file name is not part of the directory path.
+  if (segments.length && segments[segments.length - 1].includes('.')) {
+    segments.pop();
+  }
+  const repo = segments.length ? segments.shift() : host[0];
+  const within = segments.concat(ROM_DIR.replace(/\/$/, '')).join('/');
   return 'https://api.github.com/repos/' + host[1] + '/' + repo + '/contents/' +
-      ROM_DIR.replace(/\/$/, '');
+      within;
 }
 
 async function listRomsFromGitHub() {

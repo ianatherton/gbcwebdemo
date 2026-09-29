@@ -216,11 +216,29 @@ assets/style.css      page styling
 assets/controller.css on-screen gamepad styling (from GB Studio)
 vendor/binjgb.js      emulator glue, unmodified
 vendor/binjgb.wasm    emulator core, unmodified
-roms/                 your ROMs (+ an optional roms.json for names)
-guestbook/            optional Cloudflare Worker behind the shared guestbook
-tools/gen-roms.mjs    rebuilds roms/roms.json from the directory
-wrangler.toml         Cloudflare config, when hosting there instead of Pages
+index.html            the public landing page, served at /
+frienddemo/           the player, served at /frienddemo
+  index.html          the page
+  assets/             player.js, styling, the skull
+  vendor/             binjgb.js + binjgb.wasm, unmodified
+  roms/               your ROMs (+ roms.json, generated)
+  licenses/
+guestbook/            Cloudflare Worker behind the shared guestbook
+tools/gen-roms.mjs    rebuilds frienddemo/roms/roms.json from the directory
+wrangler.toml         Cloudflare config
 ```
+
+The asset directory maps one-to-one onto URL paths, so the player sitting in
+`frienddemo/` is what puts it at `marasabyss.com/frienddemo`. Everything the
+page references is page-relative, so the folder can be renamed and the only
+other thing to change is `SITE_DIR` in `tools/gen-roms.mjs`. The guestbook API
+stays at the root (`/entries`, `/shot`).
+
+`index.html` at the repo root is the public landing page — one self-contained
+file, styles inline, no script. Static assets are matched before the Worker
+runs, so it takes priority over the Worker's redirect, which is now only a
+fallback. It deliberately does not link to `/frienddemo`: that link is for
+handing to testers, not for publishing.
 
 `assets/player.js` is [binjgb](https://github.com/binji/binjgb)'s
 `docs/simple.js` with these changes:
