@@ -103,6 +103,41 @@ h1 {
   text-transform: uppercase;
 }
 
+.contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 22px;
+}
+
+.contact h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.contact ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact a {
+  color: var(--accent);
+  font-size: 15px;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.contact a:hover { border-bottom-color: var(--accent); }
+
 .footnote {
   margin: 0;
   color: var(--muted);
@@ -124,9 +159,9 @@ h1 {
 <body>
 
 <div class="skulls" aria-hidden="true">
-  <img src="frienddemo/assets/goodskull.gif?v=13" alt="">
-  <img src="frienddemo/assets/goodskull.gif?v=13" alt="">
-  <img src="frienddemo/assets/goodskull.gif?v=13" alt="">
+  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
+  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
+  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
 </div>
 
 <h1>Mara's Abyss</h1>
@@ -139,6 +174,15 @@ h1 {
 <div class="construction">
   <span>Under construction</span>
 </div>
+
+<nav class="contact" aria-label="Project links">
+  <h2>Follow</h2>
+  <ul>
+    <li><a href="https://www.indiedb.com/games/maras-abyss" target="_blank" rel="noopener">IndieDB</a></li>
+    <li><a href="https://bsky.app/profile/ianatherton.bsky.social" target="_blank" rel="noopener">Bluesky</a></li>
+    <li><a href="https://www.youtube.com/@Larkstead" target="_blank" rel="noopener">YouTube</a></li>
+  </ul>
+</nav>
 
 <p class="footnote">More soon.</p>
 

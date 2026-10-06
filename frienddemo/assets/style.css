@@ -167,6 +167,60 @@ body > footer { position: relative; z-index: 1; }
   .skull-row img:nth-child(n+4) { display: none; }
 }
 
+/* --- stage: the screen, with the project links beside it ------------------ */
+
+.stage {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.contact {
+  flex: 0 0 158px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.contact h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.contact ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.contact a {
+  display: block;
+  font-size: 14px;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.contact a:hover { border-bottom-color: var(--accent); }
+
+/* Too narrow for a column beside a 480px screen: put the links under it as a
+   single row instead, so the game keeps the full width. */
+@media (max-width: 700px) {
+  .stage { flex-direction: column; align-items: center; }
+
+  .contact { flex: 0 0 auto; width: 100%; }
+  .contact h2 { display: inline; margin: 0 10px 0 0; }
+  .contact ul { display: inline-flex; flex-direction: row; flex-wrap: wrap; gap: 14px; }
+}
+
 /* --- screen --------------------------------------------------------------- */
 
 #screen {
@@ -488,6 +542,11 @@ body.touch-gamepad { padding-bottom: 240px; }
   body.touch-gamepad { padding-bottom: 20px; }
 
   #screen { width: min(100%, calc((100vh - 90px) * 160 / 144)); }
+
+  /* The gamepad owns both edges in landscape, so the links go below rather
+     than beside, and stay out of the thumbs' way. */
+  .stage { flex-direction: column; align-items: center; gap: 8px; }
+  .contact { padding: 6px 10px; }
 
   #controller {
     top: 0;

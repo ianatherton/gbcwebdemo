@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1f2b'/%3E%3Crect x='3' y='3' width='10' height='8' rx='1' fill='%237dd3a0'/%3E%3Ccircle cx='11.5' cy='13' r='1.2' fill='%23e7ecf5'/%3E%3Crect x='3' y='12.3' width='4' height='1.4' rx='.7' fill='%23e7ecf5'/%3E%3C/svg%3E">
 <!-- Bump ?v= on every deploy so browsers fetch the new files instead of
      serving cached ones. See the Caching section of README.md. -->
-<link rel="stylesheet" href="assets/controller.css?v=13">
-<link rel="stylesheet" href="assets/style.css?v=13">
+<link rel="stylesheet" href="assets/controller.css?v=14">
+<link rel="stylesheet" href="assets/style.css?v=14">
 </head>
 <body>
 
@@ -20,10 +20,10 @@
 
 <!-- Decorative only; hidden from assistive tech. See .skull in style.css for
      why the page background has to be exactly #000. -->
-<img class="skull skull-tl" src="assets/goodskull.gif?v=13" alt="" aria-hidden="true">
-<img class="skull skull-tr" src="assets/goodskull.gif?v=13" alt="" aria-hidden="true">
-<img class="skull skull-bl" src="assets/goodskull.gif?v=13" alt="" aria-hidden="true">
-<img class="skull skull-br" src="assets/goodskull.gif?v=13" alt="" aria-hidden="true">
+<img class="skull skull-tl" src="assets/goodskull.gif?v=14" alt="" aria-hidden="true">
+<img class="skull skull-tr" src="assets/goodskull.gif?v=14" alt="" aria-hidden="true">
+<img class="skull skull-bl" src="assets/goodskull.gif?v=14" alt="" aria-hidden="true">
+<img class="skull skull-br" src="assets/goodskull.gif?v=14" alt="" aria-hidden="true">
 
 <header class="bar">
   <h1>Mara's Abyss - Alpha Testing</h1>
@@ -31,12 +31,25 @@
 </header>
 
 <main>
-  <div id="screen">
-    <canvas id="mainCanvas" width="160" height="144">Your browser does not support canvas.</canvas>
-    <button type="button" id="drop-hint">
-      <strong>Drop a ROM here</strong>
-      <span>or click to pick a <code>.gb</code> / <code>.gbc</code> file</span>
-    </button>
+  <!-- The screen and the project links share a row on a wide window and stack
+       on a narrow one; see .stage in style.css. -->
+  <div class="stage">
+    <div id="screen">
+      <canvas id="mainCanvas" width="160" height="144">Your browser does not support canvas.</canvas>
+      <button type="button" id="drop-hint">
+        <strong>Drop a ROM here</strong>
+        <span>or click to pick a <code>.gb</code> / <code>.gbc</code> file</span>
+      </button>
+    </div>
+
+    <nav class="contact" aria-label="Project links">
+      <h2>Follow</h2>
+      <ul>
+        <li><a href="https://www.indiedb.com/games/maras-abyss" target="_blank" rel="noopener">IndieDB</a></li>
+        <li><a href="https://bsky.app/profile/ianatherton.bsky.social" target="_blank" rel="noopener">Bluesky</a></li>
+        <li><a href="https://www.youtube.com/@Larkstead" target="_blank" rel="noopener">YouTube</a></li>
+      </ul>
+    </nav>
   </div>
 
   <div class="toolbar">
@@ -165,12 +178,12 @@
 </div>
 
 <div class="skull-row" aria-hidden="true">
-  <img src="assets/goodskull.gif?v=13" alt="">
-  <img src="assets/goodskull.gif?v=13" alt="">
-  <img src="assets/goodskull.gif?v=13" alt="">
-  <img src="assets/goodskull.gif?v=13" alt="">
-  <img src="assets/goodskull.gif?v=13" alt="">
-  <img src="assets/goodskull.gif?v=13" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
+  <img src="assets/goodskull.gif?v=14" alt="">
 </div>
 
 <footer class="bar">
@@ -181,7 +194,7 @@
   </p>
 </footer>
 
-<script src="vendor/binjgb.js?v=13"></script>
-<script src="assets/player.js?v=13"></script>
+<script src="vendor/binjgb.js?v=14"></script>
+<script src="assets/player.js?v=14"></script>
 </body>
 </html>
