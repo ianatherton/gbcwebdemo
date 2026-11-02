@@ -138,6 +138,27 @@ h1 {
 
 .contact a:hover { border-bottom-color: var(--accent); }
 
+/* The one call to action on the page: a solid button so it reads as the
+   primary link, distinct from the plain text links under "Follow". */
+.demo {
+  display: inline-block;
+  padding: 12px 22px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  color: var(--bg);
+  background: var(--accent);
+  font-size: clamp(14px, 3.6vw, 16px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.demo:hover,
+.demo:focus-visible {
+  color: var(--accent);
+  background: transparent;
+}
+
 .footnote {
   margin: 0;
   color: var(--muted);
@@ -175,9 +196,12 @@ h1 {
   <span>Under construction</span>
 </div>
 
+<a class="demo" href="https://ianatherton.itch.io/maras-abyss-demo" target="_blank" rel="noopener">Play the Mara's Abyss GBC demo on itch.io</a>
+
 <nav class="contact" aria-label="Project links">
   <h2>Follow</h2>
   <ul>
+    <li><a href="https://ianatherton.itch.io/" target="_blank" rel="noopener">itch.io</a></li>
     <li><a href="https://www.indiedb.com/games/maras-abyss" target="_blank" rel="noopener">IndieDB</a></li>
     <li><a href="https://bsky.app/profile/ianatherton.bsky.social" target="_blank" rel="noopener">Bluesky</a></li>
     <li><a href="https://www.youtube.com/@Larkstead" target="_blank" rel="noopener">YouTube</a></li>
