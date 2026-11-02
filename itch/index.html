@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Mara's Abyss demo</title>
+<!-- The itch.io build. This page lives in an iframe on the game's itch page,
+     so it is just the screen: no toolbar, no ROM picker, no guestbook. Every
+     path is relative because itch serves the upload from a subdirectory.
+     Build the upload with `node tools/build-itch.mjs`; see itch/README.md. -->
+<link rel="stylesheet" href="controller.css">
+<link rel="stylesheet" href="itch.css">
+</head>
+<body>
+
+<div id="screen">
+  <canvas id="mainCanvas" width="160" height="144">Your browser does not support canvas.</canvas>
+</div>
+
+<!-- Covers the game until the player clicks: that click is what gives the
+     iframe keyboard focus and lets the browser start audio. It comes back
+     whenever the iframe loses focus, so the game never runs unattended. -->
+<button type="button" id="overlay">
+  <img src="goodskull.gif" alt="" width="96" height="96">
+  <strong id="overlay-title">Play Mara's Abyss demo</strong>
+  <span id="status" role="status">Loading…</span>
+  <dl class="keys">
+    <div><dt>Move</dt><dd>Arrow keys</dd></div>
+    <div><dt>A / B</dt><dd>X / Z</dd></div>
+    <div><dt>Start / Select</dt><dd>Enter / Right Shift</dd></div>
+    <div><dt>Pause / Mute</dt><dd>Space / M</dd></div>
+    <div><dt>Save / load state</dt><dd>F6 / F9</dd></div>
+  </dl>
+</button>
+
+<div id="controller">
+  <div id="controller_dpad">
+    <div id="controller_left"></div>
+    <div id="controller_right"></div>
+    <div id="controller_up"></div>
+    <div id="controller_down"></div>
+    <div id="controller_upleft"></div>
+    <div id="controller_upright"></div>
+    <div id="controller_downleft"></div>
+    <div id="controller_downright"></div>
+  </div>
+  <div id="controller_select" class="capsuleBtn">Select</div>
+  <div id="controller_start" class="capsuleBtn">Start</div>
+  <div id="controller_b" class="roundBtn">B</div>
+  <div id="controller_a" class="roundBtn">A</div>
+</div>
+
+<script src="binjgb.js"></script>
+<script src="player.js"></script>
+</body>
+</html>

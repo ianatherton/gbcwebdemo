@@ -1,0 +1,164 @@
+/* Page shell for the itch.io build. The #controller rules live in controller.css
+   (copied from frienddemo/assets by tools/build-itch.mjs). */
+
+:root {
+  color-scheme: dark;
+  --bg: #000;
+  --text: #e7ecf5;
+  --muted: #96a0b5;
+  --accent: #7dd3a0;
+  --line: #2a3142;
+}
+
+* { box-sizing: border-box; }
+
+/* The iframe is the viewport: fill it exactly and never scroll, or the arrow
+   keys would scroll the page instead of reaching the game. */
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- screen --------------------------------------------------------------- */
+
+/* As large as the frame allows at 10:9. Size the iframe on itch to a multiple
+   of 160x144 (640x576 is 4x) and the pixels come out perfectly even. */
+#screen {
+  width: min(100vw, calc(100vh * 160 / 144));
+  aspect-ratio: 160 / 144;
+}
+
+#screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+}
+
+/* --- click-to-play overlay ------------------------------------------------ */
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.82);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+body.playing #overlay { display: none; }
+
+/* goodskull.gif has no alpha and its palette index 0 is #000000; on the
+   translucent overlay it reads as a black tile over the paused game, which is
+   fine — on the first screen there is no game behind it yet. */
+#overlay img {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+}
+
+#overlay strong {
+  color: var(--accent);
+  font-size: clamp(18px, 5vw, 26px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#overlay:hover strong,
+#overlay:focus-visible strong { text-decoration: underline; text-underline-offset: 6px; }
+
+#status { color: var(--muted); }
+#status.error { color: #ff8a8a; }
+
+.keys {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.keys div { display: contents; }
+.keys dt { color: var(--muted); text-align: right; }
+.keys dd { margin: 0; text-align: left; }
+
+/* Touch players get the on-screen gamepad, not a keyboard. */
+body.touch-gamepad .keys { display: none; }
+
+/* --- on-screen gamepad (touch devices) ------------------------------------ */
+
+/* Portrait: game on top, gamepad docked underneath it. */
+body.touch-gamepad { align-items: flex-start; }
+body.touch-gamepad #screen { width: min(100vw, calc((100vh - 220px) * 160 / 144)); }
+
+#controller {
+  bottom: 0;
+  transform: none;
+  opacity: 1;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  z-index: 5;
+}
+
+/* Diagonal pads, filling the corners of the d-pad's 3x3 grid. Same as
+   frienddemo/assets/style.css. */
+#controller_upleft,
+#controller_upright,
+#controller_downleft,
+#controller_downright {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  background: #5c5c5c;
+  background: radial-gradient(ellipse at center, #5c5c5c 0%, #525252 80%);
+}
+
+#controller_upleft { left: 20px; top: 20px; border-top-left-radius: 4px; }
+#controller_upright { left: 120px; top: 20px; border-top-right-radius: 4px; }
+#controller_downleft { left: 20px; top: 120px; border-bottom-left-radius: 4px; }
+#controller_downright { left: 120px; top: 120px; border-bottom-right-radius: 4px; }
+
+/* Landscape: d-pad on the left edge, buttons on the right, game between. */
+@media (orientation: landscape) and (pointer: coarse) {
+  body.touch-gamepad { align-items: center; }
+  body.touch-gamepad #screen { width: min(calc(100vw - 400px), calc(100vh * 160 / 144)); }
+
+  #controller {
+    top: 0;
+    height: 100%;
+    background: none;
+    border-top: 0;
+    pointer-events: none;
+  }
+
+  #controller > * { pointer-events: auto; }
+
+  #controller_dpad { bottom: auto; top: 50%; margin-top: -92px; }
+  #controller_a { bottom: 50%; margin-bottom: 4px; }
+  #controller_b { bottom: 50%; margin-bottom: -34px; }
+  #controller_start, #controller_select { bottom: 24px; }
+}

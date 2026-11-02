@@ -2,3 +2,6 @@
 
 # wrangler's local state and build cache — never deploy this.
 .wrangler/
+
+# itch.io build output — rebuild with node tools/build-itch.mjs.
+dist/
