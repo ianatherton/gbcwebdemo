@@ -5,11 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mara's Abyss</title>
 <meta name="description" content="Mara's Abyss — an as of yet unlicensed game for Game Boy Color and ModRetro Chromatic.">
+<meta property="og:title" content="Mara's Abyss">
+<meta property="og:description" content="An as of yet unlicensed game for Game Boy Color and ModRetro Chromatic.">
+<meta property="og:image" content="assets/screenshots/01_title.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23000'/%3E%3Ccircle cx='8' cy='7' r='4.5' fill='%23e7ecf5'/%3E%3Ccircle cx='6.3' cy='6.6' r='1.3' fill='%23000'/%3E%3Ccircle cx='9.7' cy='6.6' r='1.3' fill='%23000'/%3E%3Crect x='5.5' y='11' width='5' height='2.5' rx='.6' fill='%23e7ecf5'/%3E%3C/svg%3E">
 
 <!-- A single self-contained page: the styles are inline because there is no
-     second page at this level to share them with, and the only asset is the
-     skull, which lives with the demo. Bump ?v= on its URL when it changes.
+     second page at this level to share them with. Its images live in assets/.
+     Bump ?v= on an image's URL when you replace the file.
 
      This file is what puts a real page at the root. Static assets are matched
      before the Worker runs, so its mere existence overrides the Worker's
@@ -17,11 +20,13 @@
 <style>
 :root {
   color-scheme: dark;
-  --bg: #000;
-  --text: #e7ecf5;
-  --muted: #96a0b5;
-  --accent: #7dd3a0;
-  --hazard: #e8b23a;
+  --bg: #120405;
+  --panel: rgba(18, 4, 5, 0.92);
+  --text: #efe6d6;      /* the banner's bone white */
+  --muted: #b39d92;
+  --accent: #8fd18a;    /* Mara's eyes */
+  --line: #5a1c20;
+  --blood: #c8384a;
 }
 
 * { box-sizing: border-box; }
@@ -29,114 +34,72 @@
 html, body {
   margin: 0;
   min-height: 100%;
-  background: var(--bg);
   color: var(--text);
   font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
+/* The brick tile is pixel art; keep it crisp when the browser scales. */
 body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 26px;
   min-height: 100vh;
-  padding: 48px 20px;
-  text-align: center;
-}
-
-/* goodskull.gif has no alpha and its palette index 0 is #000000, so it only
-   sits cleanly on a page whose background is exactly black. */
-.skulls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-}
-
-.skulls img {
-  width: 96px;
-  height: 96px;
+  padding: 24px 16px 40px;
+  background: var(--bg) url("assets/bricks.png?v=1") repeat;
+  background-size: 192px 192px;
   image-rendering: pixelated;
 }
 
-.skulls img:nth-child(2) { width: 132px; height: 132px; }
-.skulls img:nth-child(3) { transform: scaleX(-1); }
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  text-align: center;
+}
 
-h1 {
-  margin: 0;
-  font-size: clamp(30px, 9vw, 54px);
-  letter-spacing: 0.1em;
+img { image-rendering: pixelated; }
+
+/* The banner carries the title, so it is the h1. */
+h1 { margin: 0; width: 100%; line-height: 0; }
+
+h1 img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 960 / 288;
+}
+
+.panel {
+  width: 100%;
+  padding: 24px 20px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 4px;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  line-height: 1.1;
+  color: var(--muted);
 }
 
 .tagline {
-  margin: 0;
-  max-width: 30ch;
-  color: var(--muted);
-  font-size: clamp(14px, 3.4vw, 17px);
+  margin: 0 auto;
+  max-width: 34ch;
+  font-size: clamp(16px, 3.6vw, 20px);
   text-wrap: balance;
 }
 
-.tagline strong { color: var(--text); font-weight: 600; }
+.tagline strong { color: var(--blood); font-weight: 700; }
 
-/* Hazard stripes, drawn rather than fetched — no second image to load. */
-.construction {
-  position: relative;
-  width: min(100%, 460px);
-  padding: 14px 0;
-  border-top: 2px solid var(--hazard);
-  border-bottom: 2px solid var(--hazard);
-  background: repeating-linear-gradient(
-      -45deg, var(--hazard) 0 14px, #000 14px 28px);
-}
-
-.construction span {
-  display: inline-block;
-  padding: 6px 18px;
-  background: var(--bg);
-  color: var(--hazard);
-  font-size: clamp(12px, 3vw, 14px);
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.contact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px 22px;
-}
-
-.contact h2 {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.blurb {
+  margin: 14px auto 22px;
+  max-width: 54ch;
   color: var(--muted);
+  text-wrap: pretty;
 }
-
-.contact ul {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px 22px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.contact a {
-  color: var(--accent);
-  font-size: 15px;
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-}
-
-.contact a:hover { border-bottom-color: var(--accent); }
 
 /* The one call to action on the page: a solid button so it reads as the
    primary link, distinct from the plain text links under "Follow". */
@@ -159,47 +122,106 @@ h1 {
   background: transparent;
 }
 
+/* Screenshots are 3x captures of the 160x144 screen. */
+.shots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 640px) { .shots { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px) { .shots { grid-template-columns: repeat(5, 1fr); } }
+
+.shots a {
+  display: block;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.shots img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 160 / 144;
+  border: 2px solid var(--line);
+  background: #000;
+}
+
+.shots a:hover img,
+.shots a:focus-visible img { border-color: var(--accent); }
+
+.shots span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.contact ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact a {
+  color: var(--accent);
+  font-size: 16px;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.contact a:hover { border-bottom-color: var(--accent); }
+
 .footnote {
   margin: 0;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-}
-
-@media (max-width: 420px) {
-  .skulls img { width: 64px; height: 64px; }
-  .skulls img:nth-child(2) { width: 92px; height: 92px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skulls img:nth-child(1),
-  .skulls img:nth-child(3) { display: none; }
+  text-shadow: 0 1px 2px #000;
 }
 </style>
 </head>
 <body>
+<main>
 
-<div class="skulls" aria-hidden="true">
-  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
-  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
-  <img src="frienddemo/assets/goodskull.gif?v=14" alt="">
-</div>
+<h1><img src="assets/banner.gif?v=1" width="960" height="288" alt="Mara's Abyss"></h1>
 
-<h1>Mara's Abyss</h1>
+<section class="panel" aria-label="About">
+  <p class="tagline">
+    An as of yet unlicensed game for <strong>Game Boy Color</strong> and
+    <strong>ModRetro Chromatic</strong>.
+  </p>
+  <p class="blurb">
+    Cross the overworld and its coast, rest in town, then descend through
+    crypts, mossy dungeons and caves toward Mara herself.
+  </p>
+  <a class="demo" href="https://ianatherton.itch.io/maras-abyss-demo" target="_blank" rel="noopener">Play the Mara's Abyss GBC demo on itch.io</a>
+</section>
 
-<p class="tagline">
-  An as of yet unlicensed game for <strong>Game Boy Color</strong> and
-  <strong>ModRetro Chromatic</strong>.
-</p>
+<section class="panel" aria-labelledby="shots-title">
+  <h2 id="shots-title">Screenshots</h2>
+  <ul class="shots">
+    <li><a href="assets/screenshots/01_title.png"><img src="assets/screenshots/01_title.png" width="480" height="432" loading="lazy" alt="Title screen: Mara looming over mountains and a castle"><span>Title</span></a></li>
+    <li><a href="assets/screenshots/02_menu.png"><img src="assets/screenshots/02_menu.png" width="480" height="432" loading="lazy" alt="The game's menu"><span>Menu</span></a></li>
+    <li><a href="assets/screenshots/03_overworld.png"><img src="assets/screenshots/03_overworld.png" width="480" height="432" loading="lazy" alt="Exploring the overworld"><span>Overworld</span></a></li>
+    <li><a href="assets/screenshots/04_overworld_coast.png"><img src="assets/screenshots/04_overworld_coast.png" width="480" height="432" loading="lazy" alt="The overworld coast"><span>Coast</span></a></li>
+    <li><a href="assets/screenshots/05_town.png"><img src="assets/screenshots/05_town.png" width="480" height="432" loading="lazy" alt="A town, with a villager asking: we're safe, right?"><span>Town</span></a></li>
+    <li><a href="assets/screenshots/06_dungeon_crypt.png"><img src="assets/screenshots/06_dungeon_crypt.png" width="480" height="432" loading="lazy" alt="A crypt dungeon"><span>Crypt</span></a></li>
+    <li><a href="assets/screenshots/07_dungeon_moss.png"><img src="assets/screenshots/07_dungeon_moss.png" width="480" height="432" loading="lazy" alt="A mossy dungeon"><span>Moss dungeon</span></a></li>
+    <li><a href="assets/screenshots/08_boss_antechamber.png"><img src="assets/screenshots/08_boss_antechamber.png" width="480" height="432" loading="lazy" alt="The boss antechamber"><span>Antechamber</span></a></li>
+    <li><a href="assets/screenshots/09_cave.png"><img src="assets/screenshots/09_cave.png" width="480" height="432" loading="lazy" alt="A cave"><span>Cave</span></a></li>
+    <li><a href="assets/screenshots/10_mara.png"><img src="assets/screenshots/10_mara.png" width="480" height="432" loading="lazy" alt="Mara laughing at the player"><span>Mara</span></a></li>
+  </ul>
+</section>
 
-<div class="construction">
-  <span>Under construction</span>
-</div>
-
-<a class="demo" href="https://ianatherton.itch.io/maras-abyss-demo" target="_blank" rel="noopener">Play the Mara's Abyss GBC demo on itch.io</a>
-
-<nav class="contact" aria-label="Project links">
-  <h2>Follow</h2>
+<nav class="panel contact" aria-labelledby="follow-title">
+  <h2 id="follow-title">Follow</h2>
   <ul>
     <li><a href="https://ianatherton.itch.io/" target="_blank" rel="noopener">itch.io</a></li>
     <li><a href="https://www.indiedb.com/games/maras-abyss" target="_blank" rel="noopener">IndieDB</a></li>
@@ -210,5 +232,6 @@ h1 {
 
 <p class="footnote">More soon.</p>
 
+</main>
 </body>
 </html>
